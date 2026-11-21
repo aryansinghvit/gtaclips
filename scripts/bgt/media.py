@@ -98,8 +98,9 @@ def video_slice(url, args, start, end, dest: Path, max_height, live=False):
     try:
         run(["yt-dlp", *args, *(["--live-from-start"] if live and "youtu" in url else []),
              "-f", fmt, "--merge-output-format", "mp4",
+             "--downloader-args", "ffmpeg:-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
              "--download-sections", f"*{max(0, start):.2f}-{end:.2f}",
-             "-o", str(dest.with_suffix(".%(ext)s")), url], timeout=1800)
+             "-o", str(dest.with_suffix(".%(ext)s")), url], timeout=120)
     except Problem as exc:
         raise friendly(exc, url) from None
     got = _finished(dest.parent, dest.stem)
