@@ -1,14 +1,23 @@
-"""Autonomous YouTube Shorts Scheduler & Disk Cleaner for BeyondGTAClips.
+"""Autonomous Multi-Channel YouTube Shorts Scheduler & Unique Metadata Engine.
 
-Schedules clips to YouTube Shorts at 3-hour intervals (up to 6 clips per day),
-automatically appending new clips after the last scheduled video slot.
-Immediately deletes the local MP4 and intermediate cache once scheduled.
+Features:
+1. Multi-Channel YouTube Routing:
+   - 'ghost_clips' (English): IShowSpeed, MrBeast, Kai Cenat, English creators.
+   - 'gta6_clips' (Hindi): Techno Gamerz, CarryMinati, Total Gaming, Hindi creators.
+   - Independent OAuth tokens, publishing queues, and 6-slot calendars per channel.
+2. Unique Per-Clip Metadata:
+   - Dynamic titles with #Shorts.
+   - Unique scene synopsis from transcript dialogue and visual action.
+   - Dialogue quotes, rotating CTAs, channel prompts, and tailored tags.
+3. 6 Slots/Day Schedule (12PM, 6PM, 9PM, 12AM, 6AM, 9AM).
+4. Immediate local MP4 deletion after upload.
 """
 
 import datetime
 import gc
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -22,47 +31,152 @@ from googleapiclient.http import MediaFileUpload
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"]
 CONFIG_DIR = Path.home() / "BeyondGTAClips" / "youtube_config"
-CLIENT_SECRETS_FILE = CONFIG_DIR / "client_secrets.json"
-TOKEN_FILE = CONFIG_DIR / "token.json"
-QUEUE_LOG = CONFIG_DIR / "scheduled_queue.json"
+CHANNELS_FILE = CONFIG_DIR / "channels.json"
+
+DEFAULT_CHANNELS_DATA = {
+    "default_channel": "ghost_clips",
+    "channels": {
+        "ghost_clips": {
+            "id": "ghost_clips",
+            "display_name": "Ghost Clips",
+            "aliases": ["ghost clips", "ghost", "ghostclips", "english", "speed", "mrbeast"],
+            "language": "en",
+            "creators": ["ishowspeed", "speed", "mrbeast", "kai cenat", "xqc", "adin ross"],
+            "folder": "ghost_clips",
+        },
+        "gta6_clips": {
+            "id": "gta6_clips",
+            "display_name": "GTA 6 Clips",
+            "aliases": ["gta 6 clips", "gta6 clips", "gta 6", "gta6", "hindi", "techno", "carry"],
+            "language": "hi",
+            "creators": ["techno gamerz", "technogamerz", "carryminati", "carry", "total gaming", "mythpat"],
+            "folder": "gta6_clips",
+        },
+    },
+}
 
 
 def ensure_config_dir():
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_authenticated_service():
-    """Authenticates using stored token.json, or guides one-time authorization."""
+def load_channels():
     ensure_config_dir()
-    creds = None
-    if TOKEN_FILE.exists():
+    if CHANNELS_FILE.exists():
         try:
-            creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+            return json.loads(CHANNELS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    CHANNELS_FILE.write_text(json.dumps(DEFAULT_CHANNELS_DATA, indent=2), encoding="utf-8")
+    return DEFAULT_CHANNELS_DATA
+
+
+def resolve_channel(channel_input=None):
+    """Resolves channel name/alias or defaults to ghost_clips."""
+    data = load_channels()
+    channels = data.get("channels", {})
+    if not channel_input:
+        default_key = data.get("default_channel", "ghost_clips")
+        return channels.get(default_key, list(channels.values())[0])
+
+    clean_in = str(channel_input).strip().lower()
+    for ch_key, ch_info in channels.items():
+        if clean_in == ch_key.lower() or clean_in == ch_info.get("display_name", "").lower():
+            return ch_info
+        for alias in ch_info.get("aliases", []):
+            if clean_in == alias.lower() or alias.lower() in clean_in:
+                return ch_info
+
+    # Creator-based detection fallback
+    for ch_key, ch_info in channels.items():
+        for cr in ch_info.get("creators", []):
+            if cr in clean_in:
+                return ch_info
+
+    default_key = data.get("default_channel", "ghost_clips")
+    return channels.get(default_key, list(channels.values())[0])
+
+
+def get_channel_dir(channel_profile):
+    ch_id = channel_profile.get("id") or channel_profile.get("folder") or "ghost_clips"
+    ch_dir = CONFIG_DIR / ch_id
+    ch_dir.mkdir(parents=True, exist_ok=True)
+    return ch_dir
+
+
+def get_client_secrets_file(channel_profile):
+    ch_dir = get_channel_dir(channel_profile)
+    f = ch_dir / "client_secrets.json"
+    if f.exists():
+        return f
+    root_f = CONFIG_DIR / "client_secrets.json"
+    if root_f.exists():
+        return root_f
+    return f
+
+
+def get_token_file(channel_profile):
+    ch_dir = get_channel_dir(channel_profile)
+    f = ch_dir / "token.json"
+    if f.exists():
+        return f
+    if channel_profile.get("id") == "ghost_clips":
+        root_f = CONFIG_DIR / "token.json"
+        if root_f.exists():
+            return root_f
+    return f
+
+
+def get_queue_file(channel_profile):
+    ch_dir = get_channel_dir(channel_profile)
+    f = ch_dir / "scheduled_queue.json"
+    if f.exists():
+        return f
+    if channel_profile.get("id") == "ghost_clips":
+        root_f = CONFIG_DIR / "scheduled_queue.json"
+        if root_f.exists():
+            return root_f
+    return f
+
+
+def get_authenticated_service(channel=None):
+    """Authenticates using stored token.json for the specified channel."""
+    ensure_config_dir()
+    ch_profile = resolve_channel(channel)
+    token_file = get_token_file(ch_profile)
+    client_secrets_file = get_client_secrets_file(ch_profile)
+    ch_name = ch_profile.get("display_name", "Ghost Clips")
+
+    creds = None
+    if token_file.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
         except Exception as exc:
-            print(f"[warning] Failed to load token.json: {exc}")
+            print(f"[warning] Failed to load {token_file}: {exc}")
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
-                TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+                token_file.write_text(creds.to_json(), encoding="utf-8")
             except Exception as exc:
-                print(f"[warning] Refreshing token failed: {exc}")
+                print(f"[warning] Refreshing token failed for {ch_name}: {exc}")
                 creds = None
 
         if not creds:
-            if not CLIENT_SECRETS_FILE.exists():
-                print(f"\n[MISSING] client_secrets.json not found in:\n  {CLIENT_SECRETS_FILE}")
+            if not client_secrets_file.exists():
+                print(f"\n[MISSING] client_secrets.json not found in:\n  {client_secrets_file}")
                 print("\nPlease place your Google Cloud OAuth client_secrets.json there and run:")
-                print("  py -3.13 beyondgtaclips.py youtube-auth\n")
+                print(f"  py -3.13 beyondgtaclips.py youtube-auth --channel \"{ch_name}\"\n")
                 sys.exit(1)
 
-            flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRETS_FILE), SCOPES)
+            print(f"\n[auth] Authorizing YouTube channel: {ch_name} ({ch_profile.get('language', 'en').upper()})")
+            flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets_file), SCOPES)
             message = (
-                "\n=======================================================\n"
-                "PLEASE OPEN THIS URL IN YOUR BROWSER TO AUTHORIZE:\n"
-                "{url}\n"
-                "=======================================================\n"
+                f"\n=======================================================\n"
+                f"PLEASE OPEN THIS URL IN YOUR BROWSER TO AUTHORIZE '{ch_name}':\n"
+                f"{{url}}\n"
+                f"=======================================================\n"
             )
             creds = flow.run_local_server(
                 port=8080,
@@ -71,40 +185,28 @@ def get_authenticated_service():
                 authorization_prompt_message=message,
                 open_browser=True,
             )
-            TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
-            print(f"[ok] YouTube credentials authorized and saved to {TOKEN_FILE}", flush=True)
+            token_file.write_text(creds.to_json(), encoding="utf-8")
+            print(f"[ok] YouTube credentials for '{ch_name}' saved to {token_file}", flush=True)
 
     return build("youtube", "v3", credentials=creds)
 
 
-def load_queue_log():
-    if QUEUE_LOG.exists():
+def load_queue_log(channel=None):
+    ch_profile = resolve_channel(channel)
+    q_file = get_queue_file(ch_profile)
+    if q_file.exists():
         try:
-            return json.loads(QUEUE_LOG.read_text(encoding="utf-8"))
+            return json.loads(q_file.read_text(encoding="utf-8"))
         except Exception:
             return []
     return []
 
 
-def save_queue_log(queue):
-    ensure_config_dir()
-    QUEUE_LOG.write_text(json.dumps(queue, indent=2, default=str), encoding="utf-8")
-
-
-def get_initial_start_time():
-    """Finds the next clean 3-hour milestone (e.g. 12:00, 15:00, 18:00...) in local time."""
-    local_now = datetime.datetime.now().astimezone()
-    milestones = [0, 3, 6, 9, 12, 15, 18, 21]
-    target = None
-    for h in milestones:
-        candidate = local_now.replace(hour=h, minute=0, second=0, microsecond=0)
-        if candidate > local_now + datetime.timedelta(minutes=5):
-            target = candidate
-            break
-    if target is None:
-        tomorrow = local_now + datetime.timedelta(days=1)
-        target = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-    return target.astimezone(datetime.timezone.utc)
+def save_queue_log(queue, channel=None):
+    ch_profile = resolve_channel(channel)
+    q_file = get_queue_file(ch_profile)
+    q_file.parent.mkdir(parents=True, exist_ok=True)
+    q_file.write_text(json.dumps(queue, indent=2, default=str), encoding="utf-8")
 
 
 # 6 slots per day starting at 12:00 PM local time:
@@ -117,9 +219,9 @@ def get_initial_start_time():
 DAILY_OFFSETS_HOURS = [0, 6, 9, 12, 18, 21]
 
 
-def calculate_next_slots(count, interval_hours=3):
-    """Calculates strictly 6 slots per day: 12 PM, 6 PM, 9 PM, 12 AM, 6 AM, 9 AM."""
-    queue = load_queue_log()
+def calculate_next_slots(count, channel=None, interval_hours=3):
+    """Calculates strictly 6 slots per day for the specified channel."""
+    queue = load_queue_log(channel=channel)
     local_now = datetime.datetime.now().astimezone()
 
     latest_dt = None
@@ -167,31 +269,98 @@ def calculate_next_slots(count, interval_hours=3):
     return slots
 
 
-def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt: datetime.datetime):
+def format_rich_metadata(clip_info: dict, channel_profile: dict, mp4_name: str = ""):
+    """Formats unique, viral Title, Description and Tags per clip."""
+    creator = clip_info.get("creator") or "BeyondGTAClips"
+    lang = channel_profile.get("language", "en")
+    ch_name = channel_profile.get("display_name", "Ghost Clips")
+
+    # 1. UNIQUE VIRAL TITLE
+    raw_hook = (clip_info.get("hook") or clip_info.get("title") or mp4_name).replace("*", "").strip()
+    if "#shorts" not in raw_hook.lower():
+        title = f"{raw_hook[:85]} #Shorts"
+    else:
+        title = raw_hook[:95]
+
+    # 2. UNIQUE RICH DESCRIPTION
+    scene_summary = clip_info.get("scene_summary") or clip_info.get("seen") or clip_info.get("caption") or ""
+    quote = clip_info.get("quote") or ""
+    cta = clip_info.get("cta") or ""
+
+    if not cta:
+        ctas_en = [
+            "👉 What would you do in this situation? Drop a comment below! 👇",
+            "👉 Rate this moment from 1 to 10 in the comments! 👇",
+            "👉 Did you notice what happened in the background? 👀",
+            "👉 Would you survive this in GTA 6? Let me know below! 👇",
+            "👉 Share this with a friend who is waiting for GTA 6! 🔥",
+        ]
+        ctas_hi = [
+            "👉 Agar aap is situation me hote toh kya karte? Comment me batao! 👇",
+            "👉 Is scene ko 1 se 10 me kitne number doge? Comment karo! 👇",
+            "👉 Kya aapne notice kiya piche kya hua? 👀",
+            "👉 Apne dosto ke sath share karo jo GTA 6 ka wait kar rahe hain! 🔥",
+            "👉 GTA 6 me sabse pehle aap kya karoge? Niche batao! 👇",
+        ]
+        h_idx = abs(hash(raw_hook)) % 5
+        cta = (ctas_hi if lang == "hi" else ctas_en)[h_idx]
+
+    desc_lines = []
+    if scene_summary:
+        desc_lines.append(scene_summary)
+    if quote:
+        desc_lines.append(f'\n💬 "{quote}"')
+
+    desc_lines.append(f"\n{cta}")
+    desc_lines.append(f"🔔 Subscribe to @{ch_name} for daily viral GTA 6 clips!")
+
+    # Attribution
+    stream_title = clip_info.get("stream_title") or "GTA 6 Gameplay Stream"
+    desc_lines.append(f"\n🎮 Streamer: {creator}\n🎬 Stream: {stream_title}")
+
+    # Hashtags
+    hashtags = clip_info.get("hashtags")
+    if not hashtags or not isinstance(hashtags, list):
+        clean_tag = re.sub(r"[^a-zA-Z0-9]", "", creator.lower())
+        if lang == "hi":
+            hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
+        else:
+            hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
+
+    desc_lines.append("\n" + " ".join(hashtags))
+    full_description = "\n".join(desc_lines)
+
+    # 3. TAILORED YOUTUBE TAGS
+    clean_tags = [t.replace("#", "").strip() for t in hashtags if t]
+    base_tags = ["shorts", "gta6", "gta 6", "gaming", creator.lower()]
+    if lang == "hi":
+        base_tags += ["gta 6 hindi", "hindi gameplay", f"{creator.lower()} gta 6", "techno gamerz", "carryminati"]
+    else:
+        base_tags += ["gta 6 funny", "gta 6 moments", f"{creator.lower()} gta 6", "ishowspeed", "mrbeast"]
+
+    combined_tags = []
+    for t in clean_tags + base_tags:
+        if t and t.lower() not in [x.lower() for x in combined_tags]:
+            combined_tags.append(t)
+
+    return title, full_description, combined_tags
+
+
+def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt: datetime.datetime, channel_profile: dict = None):
     """Uploads a video to YouTube Shorts as private with publishAt set."""
     if not mp4_path.exists():
         print(f"[error] Video file {mp4_path} not found")
         return None
 
-    # Format Title: Hook text (strip markdown stars), add #Shorts, keep under 100 chars
-    raw_hook = (clip_info.get("hook") or clip_info.get("title") or mp4_path.stem).replace("*", "")
-    title = f"{raw_hook[:85]} #Shorts"
-
-    # Description
-    desc = clip_info.get("caption") or ""
-    tags = clip_info.get("hashtags") or ["#gta6", "#Shorts", "#gaming"]
-    if isinstance(tags, list):
-        desc += "\n\n" + " ".join(tags)
-    creator = clip_info.get("creator") or "BeyondGTAClips"
-    desc += f"\n\n🎮 Credit: {creator}\nClip generated automatically by Beyond GTA Clips."
-
+    ch_profile = channel_profile or resolve_channel()
+    title, desc, tags = format_rich_metadata(clip_info, ch_profile, mp4_path.stem)
     iso_publish = publish_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     body = {
         "snippet": {
             "title": title,
             "description": desc,
-            "tags": [t.replace("#", "") for t in tags] + ["shorts", "gta6", "gaming"],
+            "tags": tags[:30],  # YouTube API accepts up to ~500 chars of tags
             "categoryId": "20",  # Gaming
         },
         "status": {
@@ -202,7 +371,8 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
     }
 
     media = MediaFileUpload(str(mp4_path), mimetype="video/mp4", resumable=True)
-    print(f"\n[uploading] {mp4_path.name}")
+    ch_display = ch_profile.get("display_name", "Ghost Clips")
+    print(f"\n[uploading -> {ch_display}] {mp4_path.name}")
     print(f"  Title: {title}")
     print(f"  Scheduled Live: {iso_publish} UTC (in {round((publish_at_dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 3600, 1)} hours)")
 
@@ -217,7 +387,7 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
         except Exception as exc:
             err_msg = str(exc)
             if "quotaExceeded" in err_msg or "uploadLimitExceeded" in err_msg:
-                print(f"\n[quota] YouTube daily upload quota limit reached: {exc}")
+                print(f"\n[quota] YouTube daily upload quota limit reached for {ch_display}: {exc}")
                 print(f"[quota] Local video {mp4_path.name} preserved safely for tomorrow's quota reset.")
                 if hasattr(media, "_fd") and media._fd:
                     try:
@@ -233,7 +403,7 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
             time.sleep(5)
 
     video_id = response.get("id")
-    print(f"[ok] Video scheduled! https://youtu.be/{video_id}")
+    print(f"[ok] Video scheduled to {ch_display}! https://youtu.be/{video_id}")
 
     # Immediately delete local MP4 to save disk space
     try:
@@ -251,23 +421,25 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
     except Exception as exc:
         print(f"[warning] Could not delete {mp4_path}: {exc}")
 
-    # Record in queue log
+    # Record in channel's queue log
     log_entry = {
+        "channel": ch_profile.get("id", "ghost_clips"),
+        "channel_name": ch_display,
         "video_id": video_id,
         "title": title,
         "publish_at": iso_publish,
         "scheduled_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "url": f"https://youtu.be/{video_id}",
     }
-    queue = load_queue_log()
+    queue = load_queue_log(channel=ch_profile)
     queue.append(log_entry)
-    save_queue_log(queue)
+    save_queue_log(queue, channel=ch_profile)
 
     return log_entry
 
 
-def process_folder(outdir: Path):
-    """Processes all rendered MP4s in a folder and schedules them to YouTube."""
+def process_folder(outdir: Path, channel=None):
+    """Processes all rendered MP4s in a folder and schedules them to YouTube for the specified channel."""
     outdir = Path(outdir)
     clips_json_path = outdir / "clips.json"
     if not clips_json_path.exists():
@@ -281,7 +453,8 @@ def process_folder(outdir: Path):
         return []
 
     clips = data.get("clips", [])
-    creator = (data.get("source") or {}).get("name") or "IShowSpeed"
+    creator = (data.get("source") or {}).get("name") or "Streamer"
+    stream_title = (data.get("source") or {}).get("title") or "GTA 6 Stream"
 
     # Find pending MP4s
     pending = []
@@ -291,19 +464,22 @@ def process_folder(outdir: Path):
             if mp4_file.exists():
                 c_copy = dict(c)
                 c_copy["creator"] = creator
+                c_copy["stream_title"] = stream_title
                 pending.append((mp4_file, c_copy))
 
     if not pending:
         print(f"[info] No unuploaded MP4s in {outdir}")
         return []
 
-    print(f"\n[schedule] Found {len(pending)} clip(s) to schedule from {outdir.name}")
-    youtube = get_authenticated_service()
+    ch_profile = resolve_channel(channel)
+    ch_display = ch_profile.get("display_name", "Ghost Clips")
+    print(f"\n[schedule] Found {len(pending)} clip(s) for channel: '{ch_display}' ({outdir.name})")
+    youtube = get_authenticated_service(channel=ch_profile)
 
-    slots = calculate_next_slots(len(pending), interval_hours=3)
+    slots = calculate_next_slots(len(pending), channel=ch_profile, interval_hours=3)
     results = []
     for (mp4_file, clip_info), slot in zip(pending, slots):
-        res = upload_and_schedule(youtube, mp4_file, clip_info, slot)
+        res = upload_and_schedule(youtube, mp4_file, clip_info, slot, channel_profile=ch_profile)
         if res:
             results.append(res)
 
@@ -311,18 +487,40 @@ def process_folder(outdir: Path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "auth":
-        get_authenticated_service()
-        print("Authentication complete!")
-    elif len(sys.argv) > 1 and sys.argv[1] == "status":
-        q = load_queue_log()
-        print(f"\nTotal scheduled videos logged: {len(q)}")
-        for item in q[-10:]:
-            print(f"  {item.get('publish_at')} | {item.get('title')} | {item.get('url')}")
-    elif len(sys.argv) > 2 and sys.argv[1] == "schedule":
-        process_folder(Path(sys.argv[2]))
+    import argparse
+    parser = argparse.ArgumentParser(description="Multi-Channel YouTube Scheduler")
+    sub = parser.add_subparsers(dest="cmd")
+
+    p_auth = sub.add_parser("auth", help="Authorize a YouTube channel")
+    p_auth.add_argument("--channel", default="ghost_clips", help="Channel name or alias (e.g. 'ghost clips' or 'gta 6 clips')")
+
+    p_status = sub.add_parser("status", help="Check scheduled queue for a channel")
+    p_status.add_argument("--channel", default=None, help="Channel name or alias (omit to see all)")
+
+    p_sched = sub.add_parser("schedule", help="Schedule MP4s in a folder")
+    p_sched.add_argument("folder", help="Path to clip folder containing clips.json")
+    p_sched.add_argument("--channel", default="ghost_clips", help="Target YouTube channel")
+
+    args = parser.parse_args()
+
+    if args.cmd == "auth":
+        ch = resolve_channel(args.channel)
+        get_authenticated_service(channel=ch)
+        print(f"Authentication complete for channel: {ch.get('display_name')}!")
+    elif args.cmd == "status":
+        if args.channel:
+            ch_list = [resolve_channel(args.channel)]
+        else:
+            ch_data = load_channels()
+            ch_list = list(ch_data.get("channels", {}).values())
+
+        for ch in ch_list:
+            q = load_queue_log(channel=ch)
+            print(f"\n=== Channel: {ch.get('display_name')} ({ch.get('language', 'en').upper()}) ===")
+            print(f"Total scheduled videos logged: {len(q)}")
+            for item in q[-6:]:
+                print(f"  {item.get('publish_at')} | {item.get('title')} | {item.get('url')}")
+    elif args.cmd == "schedule":
+        process_folder(Path(args.folder), channel=args.channel)
     else:
-        print("Usage:")
-        print("  py -3.13 youtube_scheduler.py auth")
-        print("  py -3.13 youtube_scheduler.py status")
-        print("  py -3.13 youtube_scheduler.py schedule <folder_path>")
+        parser.print_help()

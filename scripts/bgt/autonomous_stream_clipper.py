@@ -1,14 +1,14 @@
-"""Autonomous 1-Hour Chunk Stream Clipper & Parallel YouTube Scheduler.
+"""Autonomous 1-Hour Chunk Stream Clipper & Multi-Channel YouTube Scheduler.
 
 Runs overnight with 100% zero user intervention:
 1. Slices long streams into consecutive 1-hour chunks (0-60m, 60-120m, ...).
 2. Autonomously selects viral moments and runs story-checks without halting.
 3. Renders 5-6 Stack style 9:16 vertical reels per hour.
-4. Parallel YouTube Uploader: While Chunk N uploads and schedules to YouTube,
-   Chunk N+1 is simultaneously sliced, transcribed, and rendered in the background!
-5. Immediate disk purge: Local MP4s and temp slices are deleted as soon as
-   each upload succeeds, maintaining < 500 MB total disk usage throughout.
-6. Advances chunk-by-chunk until the stream is complete.
+4. Generates unique per-clip rich metadata (titles, quotes, scene summaries, CTAs, tags).
+5. Multi-Channel Routing: 'ghost_clips' (English) vs 'gta6_clips' (Hindi).
+6. Parallel YouTube Uploader: While Chunk N uploads to YouTube,
+   Chunk N+1 is simultaneously sliced, transcribed, and rendered in parallel.
+7. Immediate disk purge: Local MP4s and temp slices deleted after upload (< 500 MB).
 """
 
 import datetime
@@ -49,8 +49,11 @@ def save_progress(data):
     PROGRESS_FILE.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
 
 
-def solve_agent_tasks(waiting_items, default_creator="Streamer"):
-    """Autonomously answers highlights prompt files without user intervention."""
+def solve_agent_tasks(waiting_items, default_creator="Streamer", channel_profile=None):
+    """Autonomously answers highlights prompt files with rich, unique per-clip metadata."""
+    ch_info = channel_profile or {}
+    lang = ch_info.get("language", "en")
+
     for q_file, a_file in waiting_items:
         if a_file.exists():
             continue
@@ -121,11 +124,25 @@ def solve_agent_tasks(waiting_items, default_creator="Streamer"):
             if all(abs(p["start"] - start_t) > 25.0 for p in picks):
                 words_list = txt.split()
                 clean_title = " ".join(words_list[:4]).upper() or "VIRAL MOMENT"
-                phrase = " ".join(words_list[:5]).replace("*", "")
-                if len(phrase) > 5:
-                    hook = f"{creator} when *{phrase}* in *GTA 6* 😭"
+                phrase = " ".join(words_list[:6]).replace("*", "")
+
+                # Language-specific titles, hooks, scene synopses & tags
+                if lang == "hi":
+                    if len(phrase) > 4:
+                        hook = f"{creator} jab *{phrase}* in *GTA 6* 😂"
+                    else:
+                        hook = f"{creator} *HOSH UD GAYE* in *GTA 6* 💀"
+                    headline = f"{creator} reacts to GTA 6 Hindi gameplay"
+                    scene_summary = f"{creator} ka GTA 6 me ye scene dekh kar dimaag hil gaya! Yaha dekhiye jab '{phrase}' hua tab kya reaction tha."
+                    hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
                 else:
-                    hook = f"{creator} was *NOT ready* for what happened in *GTA 6* 😭"
+                    if len(phrase) > 4:
+                        hook = f"{creator} when *{phrase}* in *GTA 6* 😭"
+                    else:
+                        hook = f"{creator} was *NOT ready* for what happened in *GTA 6* 😭"
+                    headline = f"{creator} reacts to crazy GTA 6 moment"
+                    scene_summary = f"{creator} was completely caught off guard in GTA 6! Here is the moment where '{phrase}' happened during the stream."
+                    hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
 
                 picks.append({
                     "start": round(start_t, 1),
@@ -140,11 +157,13 @@ def solve_agent_tasks(waiting_items, default_creator="Streamer"):
                         "Nobody expected this in GTA 6",
                     ],
                     "title": clean_title,
-                    "headline": f"{creator} reacts to crazy GTA 6 moment",
-                    "caption": f"{creator} was in absolute disbelief in GTA 6 💀 Did you catch this?",
-                    "hashtags": ["#gta6", f"#{clean_tag}", "#Shorts", "#gaming"],
+                    "headline": headline,
+                    "scene_summary": scene_summary,
+                    "quote": txt.strip(),
+                    "caption": scene_summary,
+                    "hashtags": hashtags,
                     "score": min(95, sc),
-                    "why": "High volume reaction and chat spike during gameplay.",
+                    "why": f"Volume reaction and chat spike at {clock(t)}: '{phrase}'.",
                 })
             if len(picks) >= 3:
                 break
@@ -153,8 +172,11 @@ def solve_agent_tasks(waiting_items, default_creator="Streamer"):
         say(f"  [autonomous-brain] solved transcript window at {clock(lo)} ({len(picks)} picks)", "good")
 
 
-def solve_story_tasks(waiting_items, default_creator="Streamer"):
+def solve_story_tasks(waiting_items, default_creator="Streamer", channel_profile=None):
     """Autonomously answers story-check verification prompts without user intervention."""
+    ch_info = channel_profile or {}
+    lang = ch_info.get("language", "en")
+
     for q_file, a_file in waiting_items:
         if a_file.exists():
             continue
@@ -172,6 +194,14 @@ def solve_story_tasks(waiting_items, default_creator="Streamer"):
 
         m_creator = re.search(r"Streamer:\s*(.+)", prompt_text)
         creator = m_creator.group(1).strip() if m_creator else default_creator
+        clean_tag = re.sub(r"[^a-zA-Z0-9]", "", creator.lower()) or "gaming"
+
+        if lang == "hi":
+            scene_summary = f"{creator} ka GTA 6 gameplay me ye unexpected moment dekhne layak hai! Pura scene dekho."
+            hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
+        else:
+            scene_summary = f"{creator} reacts to an insane chain of events during this GTA 6 stream session!"
+            hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
 
         answer = {
             "verdict": "keep",
@@ -187,13 +217,15 @@ def solve_story_tasks(waiting_items, default_creator="Streamer"):
             ],
             "title": "MOMENT REEL",
             "headline": f"{creator} in GTA 6 gameplay",
-            "caption": f"{creator} was in complete disbelief 💀 Did you see this coming?",
+            "scene_summary": scene_summary,
+            "caption": scene_summary,
+            "hashtags": hashtags,
         }
         a_file.write_text(json.dumps(answer, indent=2), encoding="utf-8")
         say(f"  [autonomous-brain] verified story check for {q_file.stem}", "good")
 
 
-def run_chunk_with_auto_brain(url, opts, cfg, creator_name="Streamer"):
+def run_chunk_with_auto_brain(url, opts, cfg, creator_name="Streamer", channel_profile=None):
     """Executes pipeline.process, catching NeedAgent and solving tasks automatically."""
     while True:
         try:
@@ -201,9 +233,9 @@ def run_chunk_with_auto_brain(url, opts, cfg, creator_name="Streamer"):
         except brains.NeedAgent as need:
             first_q = need.waiting[0][0]
             if "story" in str(first_q):
-                solve_story_tasks(need.waiting, default_creator=creator_name)
+                solve_story_tasks(need.waiting, default_creator=creator_name, channel_profile=channel_profile)
             else:
-                solve_agent_tasks(need.waiting, default_creator=creator_name)
+                solve_agent_tasks(need.waiting, default_creator=creator_name, channel_profile=channel_profile)
             time.sleep(1)
 
 
@@ -223,8 +255,9 @@ def cleanup_cache_slice(url, lo, hi):
         say(f"  [warning] cache cleanup notice: {exc}", "warn")
 
 
-def _uploader_worker(upload_q: queue.Queue, scheduled_counter: list, stop_event: threading.Event):
+def _uploader_worker(upload_q: queue.Queue, scheduled_counter: list, stop_event: threading.Event, channel_profile: dict = None):
     """Background consumer thread: uploads finished chunks to YouTube Shorts concurrently."""
+    ch_display = (channel_profile or {}).get("display_name", "Ghost Clips")
     while not stop_event.is_set():
         try:
             item = upload_q.get(timeout=1.0)
@@ -236,22 +269,27 @@ def _uploader_worker(upload_q: queue.Queue, scheduled_counter: list, stop_event:
             break
 
         chunk_num, outdir, lo, hi, url = item
-        say(f"\n[uploader-thread] Starting YouTube upload for Chunk {chunk_num} ({clock(lo)}-{clock(hi)})...", "step")
+        say(f"\n[uploader-thread] Starting YouTube upload for Chunk {chunk_num} to '{ch_display}' ({clock(lo)}-{clock(hi)})...", "step")
         try:
-            results = youtube_scheduler.process_folder(Path(outdir))
+            results = youtube_scheduler.process_folder(Path(outdir), channel=channel_profile)
             scheduled_counter[0] += len(results)
-            say(f"[uploader-thread] Chunk {chunk_num} uploaded: {len(results)} clip(s) scheduled on YouTube!", "good")
+            say(f"[uploader-thread] Chunk {chunk_num} uploaded: {len(results)} clip(s) scheduled on '{ch_display}'!", "good")
         except Exception as exc:
             say(f"[uploader-thread] Warning on Chunk {chunk_num} upload: {exc}", "warn")
         finally:
             upload_q.task_done()
 
 
-def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: int = 6, style: str = "stack", schedule_interval: int = 3):
+def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: int = 6, style: str = "stack", schedule_interval: int = 3, channel: str = None):
     """Master overnight loop: 1-hour chunks with parallel rendering and YouTube scheduling."""
+    ch_profile = youtube_scheduler.resolve_channel(channel)
+    ch_display = ch_profile.get("display_name", "Ghost Clips")
+    ch_lang = ch_profile.get("language", "en").upper()
+
     say(f"\n=======================================================", "step")
     say(f"STARTING AUTONOMOUS OVERNIGHT STREAM PIPELINE (PARALLEL)", "step")
     say(f"Stream: {url}", "step")
+    say(f"Target YouTube Channel: {ch_display} ({ch_lang})", "step")
     say(f"Chunk size: {chunk_hours} hour(s) | Target clips/chunk: {clips_per_chunk} | Style: {style}", "step")
     say(f"YouTube publishing: 6 clips/day (12 PM, 6 PM, 9 PM, 12 AM, 6 AM, 9 AM)", "step")
     say(f"=======================================================\n", "step")
@@ -282,7 +320,7 @@ def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: i
 
     uploader_thread = threading.Thread(
         target=_uploader_worker,
-        args=(upload_q, scheduled_counter, stop_event),
+        args=(upload_q, scheduled_counter, stop_event, ch_profile),
         daemon=True,
     )
     uploader_thread.start()
@@ -318,15 +356,15 @@ def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: i
 
             cfg = settings.load({"clips": clips_per_chunk, "template": style, "max_hours": None})
 
-            # Process chunk (download audio slice, transcribe, pick moments, render)
-            res = run_chunk_with_auto_brain(url, Opts(), cfg, creator_name=creator)
+            # Process chunk with dynamic creator and channel profile
+            res = run_chunk_with_auto_brain(url, Opts(), cfg, creator_name=creator, channel_profile=ch_profile)
             outdir = res.get("outdir")
 
             # Clean temporary audio/video slices for this hour immediately
             cleanup_cache_slice(url, lo, hi)
 
             if outdir and Path(outdir).exists():
-                say(f"[pipeline] Chunk {i+1} rendered! Sending to background YouTube uploader...", "good")
+                say(f"[pipeline] Chunk {i+1} rendered! Sending to background YouTube uploader ('{ch_display}')...", "good")
                 say(f"[pipeline] Slicing next chunk immediately in parallel...", "step")
                 # Put in queue: uploader runs concurrently while main thread immediately advances
                 upload_q.put((i + 1, outdir, lo, hi, url))
@@ -337,7 +375,7 @@ def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: i
             save_progress(progress)
 
         # Wait for any remaining background uploads to finish
-        say("\n[pipeline] All chunks rendered! Finalizing any active YouTube uploads...", "step")
+        say(f"\n[pipeline] All chunks rendered! Finalizing any active YouTube uploads for '{ch_display}'...", "step")
         upload_q.put(None)
         uploader_thread.join(timeout=1800)  # max 30 min wait for last batch
 
@@ -353,13 +391,19 @@ def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: i
 
     say(f"\n=======================================================", "step")
     say(f"🎉 OVERNIGHT PIPELINE COMPLETED FOR ALL {num_chunks} CHUNKS!", "good")
-    say(f"Total clips scheduled to YouTube: {scheduled_counter[0]}", "good")
+    say(f"Total clips scheduled to '{ch_display}': {scheduled_counter[0]}", "good")
     say(f"Disk space preserved: All local video files unlinked upon upload.", "good")
     say(f"=======================================================\n", "step")
 
 
 if __name__ == "__main__":
-    url_target = sys.argv[1] if len(sys.argv) > 1 else None
+    import argparse
+    parser = argparse.ArgumentParser(description="Autonomous Stream Clipper")
+    parser.add_argument("url", nargs="?", help="Stream URL to clip")
+    parser.add_argument("--channel", default="ghost_clips", help="Target YouTube channel ('ghost clips' or 'gta 6 clips')")
+    args = parser.parse_args()
+
+    url_target = args.url
     if not url_target:
         say("Finding top GTA 6 stream from the last 48 hours...", "step")
         cfg = settings.load()
@@ -373,4 +417,4 @@ if __name__ == "__main__":
         url_target = found[0]["url"]
         say(f"Selected: {found[0].get('name')} - {found[0].get('title')} ({url_target})", "good")
 
-    run_stream_automation(url_target)
+    run_stream_automation(url_target, channel=args.channel)

@@ -87,12 +87,16 @@ def parser():
 
     a = sub.add_parser("auto", help="overnight autonomous loop: 1-hour chunks, auto-brain, and YouTube scheduling")
     a.add_argument("url", nargs="?", help="stream URL (or omit to pick top trending stream)")
+    a.add_argument("--channel", default="ghost_clips", help="target YouTube channel: 'ghost clips' (English) or 'gta 6 clips' (Hindi)")
     a.add_argument("--styles", dest="styles", default="stack", help="edit style (default: stack)")
     a.add_argument("--clips-per-chunk", type=int, default=6, help="clips per 1-hour chunk (default: 6)")
     a.add_argument("--schedule-interval", type=int, default=3, help="interval in hours between YouTube uploads (default: 3)")
 
-    sub.add_parser("youtube-auth", help="one-time YouTube authorization")
-    sub.add_parser("youtube-status", help="check scheduled YouTube videos")
+    ya = sub.add_parser("youtube-auth", help="one-time YouTube authorization")
+    ya.add_argument("--channel", default="ghost_clips", help="channel to authorize ('ghost clips' or 'gta 6 clips')")
+
+    ys = sub.add_parser("youtube-status", help="check scheduled YouTube videos")
+    ys.add_argument("--channel", default=None, help="channel to inspect ('ghost clips', 'gta 6 clips', or omit for all)")
 
     sub.add_parser("styles", help="show the five edit styles (a screenshot to pick from)")
     sub.add_parser("doctor", help="check the install")
@@ -171,14 +175,25 @@ def main(argv):
             return prune(opts.days)
         if opts.command == "youtube-auth":
             from . import youtube_scheduler
-            youtube_scheduler.get_authenticated_service()
+            ch = youtube_scheduler.resolve_channel(getattr(opts, "channel", None))
+            youtube_scheduler.get_authenticated_service(channel=ch)
+            say(f"Authentication complete for channel: {ch.get('display_name')}!", "good")
             return 0
         if opts.command == "youtube-status":
             from . import youtube_scheduler
-            q = youtube_scheduler.load_queue_log()
-            print(f"\nTotal scheduled videos logged: {len(q)}")
-            for item in q[-10:]:
-                print(f"  {item.get('publish_at')} | {item.get('title')} | {item.get('url')}")
+            ch_arg = getattr(opts, "channel", None)
+            if ch_arg:
+                ch_list = [youtube_scheduler.resolve_channel(ch_arg)]
+            else:
+                ch_data = youtube_scheduler.load_channels()
+                ch_list = list(ch_data.get("channels", {}).values())
+
+            for ch in ch_list:
+                q = youtube_scheduler.load_queue_log(channel=ch)
+                print(f"\n=== Channel: {ch.get('display_name')} ({ch.get('language', 'en').upper()}) ===")
+                print(f"Total scheduled videos logged: {len(q)}")
+                for item in q[-6:]:
+                    print(f"  {item.get('publish_at')} | {item.get('title')} | {item.get('url')}")
             return 0
         need("yt-dlp", "Run setup first.")
         need("ffmpeg", "Install ffmpeg (macOS: brew install ffmpeg, Windows: winget install Gyan.FFmpeg).")
@@ -195,7 +210,8 @@ def main(argv):
             return 0
 
         if opts.command == "auto":
-            from . import autonomous_stream_clipper
+            from . import autonomous_stream_clipper, youtube_scheduler
+            ch = youtube_scheduler.resolve_channel(getattr(opts, "channel", None))
             target_url = opts.url
             if not target_url:
                 words = discover.spellings("GTA 6", cfg)
@@ -206,12 +222,15 @@ def main(argv):
                     raise Problem("No GTA 6 streams found in the last 48 hours to clip.")
                 target_url = found[0]["url"]
                 say(f"[auto] Automatically selected top stream: {found[0].get('name')} - {found[0].get('title')} ({target_url})", "good")
+
+            say(f"[auto] Target channel: {ch.get('display_name')} ({ch.get('language', 'en').upper()})", "good")
             autonomous_stream_clipper.run_stream_automation(
                 target_url,
                 chunk_hours=1.0,
                 clips_per_chunk=opts.clips_per_chunk,
                 style=opts.styles,
-                schedule_interval=opts.schedule_interval
+                schedule_interval=opts.schedule_interval,
+                channel=ch
             )
             return 0
 
