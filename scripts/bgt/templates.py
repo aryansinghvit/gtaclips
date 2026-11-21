@@ -16,6 +16,7 @@ with ffmpeg + Pillow graphics. Clean rules shared by all of them:
   news       BREAKING tag, condensed headline, clip, red ticker scrolling, source line
 """
 
+import re
 from . import art
 from .common import even
 
@@ -160,7 +161,7 @@ def stack(g, ctx):
     cap_y = game_y - 74                             # caption word just above the game
     background(g, "000000")
 
-    title = stack_title(pick)
+    title = stack_title(pick, ctx)
     slab = None
     if title:
         size = 74 if len(title) <= 26 else 62
@@ -214,20 +215,82 @@ def stack(g, ctx):
         g.place(art.pill(ctx["creator"], 28, bg="111111", fg="FFFFFF", kind="label"), "chip", 40, 70)
 
 
-def stack_title(pick):
-    """Short statement for the split-screen title: the headline when it is short, else the title."""
+def stack_title(pick, ctx=None):
+    """Short statement for the split-screen title: headline when short, else title or context-aware curiosity hook."""
     clean = lambda s: " ".join(art.re.sub(r"[*#]", "", s or "").split())
     head, title = clean(pick.get("headline")), clean(pick.get("title"))
 
-    # Guard against legacy generic headlines
-    if head and any(bad in head.lower() for bad in ["in gta 6 gameplay", "reacts to crazy", "reacts to gta 6"]):
+    # Guard against legacy generic headlines or titles
+    GENERIC_KEYWORDS = ["in gta 6 gameplay", "reacts to crazy", "reacts to gta 6", "reacts live", "gta 6 gameplay"]
+    if head and any(bad in head.lower() for bad in GENERIC_KEYWORDS):
         head = None
 
-    if head and len(head) <= 40 and len(head.split()) <= 8:
+    if head and len(head) <= 45 and len(head.split()) <= 8:
         return head
-    if title and title.upper() != "MOMENT REEL":
+    if title and title.upper() not in ("MOMENT REEL", "VIRAL MOMENT", "") and len(title) <= 40:
         return title
-    return head or "BRO WAS NOT READY 💀"
+
+    # Detect language / channel profile from ctx
+    cfg = (ctx or {}).get("cfg") or {}
+    lang = cfg.get("language") or "en"
+    channel = str(cfg.get("channel") or "").lower()
+    creator = (ctx or {}).get("creator") or pick.get("creator") or ""
+    if "gta 6 clips" in channel or any(c in creator.lower() for c in ["techno", "carry", "total", "mythpat"]):
+        lang = "hi"
+
+    # Try dialogue quote if available
+    quote = clean(pick.get("quote"))
+    if quote:
+        quote_words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", "", quote).split() if len(w) > 1]
+        if len(quote_words) >= 2:
+            short_q = " ".join(quote_words[:4]).upper()
+            if len(short_q) <= 25:
+                if lang == "hi":
+                    return f'BHAI NE BOLA "{short_q}" 💀'
+                else:
+                    return f'BRO REALLY SAID "{short_q}" 💀'
+
+    # Dynamic rotating pool of channel-tailored curiosity hooks
+    seed = abs(hash(str(pick.get("start", 0)) + str(pick.get("end", 0)) + str(pick.get("hook", "")) + str(creator)))
+
+    if lang == "hi":
+        fallbacks = [
+            "YE KYA HO GAYA BHAI?! 💀",
+            "END MISS MAT KARNA! 😱",
+            "BHAI KA DIMAAG HIL GAYA! 😂",
+            "YE KISI NE NAHI SOCHA THA 💀",
+            "BHAI KA REACTION DEKHO 😭",
+            "ISKE SAATH BADA SCAM HUA 💀",
+            "BHAI KO PATA BHI NAHI CHALA 😂",
+            "AISA KAISE HO SAKTA HAI?! 🤯",
+            "POORA SCENE DEKHO BHAI 💀",
+            "BHAI KE TOH HOSH UD GAYE 😭",
+            "BHAI BILKUL READY NAHI THA 💀",
+            "BHAI NE YE KYA KAR DIYA?! 😂",
+            "ISNE TOH HAD KAR DI! 💀",
+            "WAIT FOR THE TWIST AT END 💀",
+            "YE SCENE MISSED HO JATA! 🔥"
+        ]
+    else:
+        fallbacks = [
+            "BRO WAS NOT READY 💀",
+            "WAIT FOR HIS REACTION... 😭",
+            "NO WAY THIS JUST HAPPENED 😱",
+            "HE THOUGHT HE WAS SAFE 💀",
+            "BRO LOST HIS MIND 😭",
+            "WATCH TILL THE VERY END 💀",
+            "HOW DID HE SURVIVE THIS?! 🤯",
+            "HE DID NOT SEE IT COMING 💀",
+            "BRO REGRETTED THIS INSTANTLY 😭",
+            "HIS REACTION SAYS IT ALL 💀",
+            "BRO'S SOUL LEFT HIS BODY 💀",
+            "COMPLETELY CAUGHT OFF GUARD 🤯",
+            "HE ACTUALLY TRIED THIS 💀",
+            "BRO FORGOT HE WAS LIVE 😭",
+            "NOBODY EXPECTED THIS 😱"
+        ]
+
+    return fallbacks[seed % len(fallbacks)]
 
 
 def bubble(g, ctx):
@@ -262,7 +325,7 @@ def bubble(g, ctx):
         by = H - 440 - d                         # bottom-left, above the app's caption area
         g.over(cb, 56, by)
         g.place(art.ring(d + 16, 7, accent), "ring", 48, by - 8)
-    title = (pick.get("title") or "").upper()
+    title = stack_title(pick, ctx)
     if title:
         sticker = art.pill(title, 62, bg="FFFFFF", fg="111111", max_width=W - 140)
         g.place(sticker, "title", "center", int(H * 0.22), enable="between(t,0,3.2)")
