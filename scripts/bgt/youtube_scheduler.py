@@ -230,17 +230,23 @@ def save_queue_log(queue, channel=None):
 DAILY_OFFSETS_HOURS = [0, 6, 9, 12, 18, 21]
 
 
-def calculate_next_slots(count, channel=None, interval_hours=3):
-    """Calculates strictly 6 slots per day for the specified channel."""
+def calculate_next_slots(count, channel=None, interval_hours=3, first_immediate=True):
+    """Calculates strictly 6 slots per day for the specified channel.
+    If the channel queue has no active future clips, the 1st clip is set to None (Immediate / Public).
+    Remaining clips are scheduled into the 6 standard daily slots:
+    12:00 PM, 06:00 PM, 09:00 PM, 12:00 AM, 06:00 AM, 09:00 AM.
+    """
     queue = load_queue_log(channel=channel)
     local_now = datetime.datetime.now().astimezone()
 
     latest_dt = None
     for item in queue:
         try:
-            dt = datetime.datetime.fromisoformat(item["publish_at"].replace("Z", "+00:00")).astimezone()
-            if latest_dt is None or dt > latest_dt:
-                latest_dt = dt
+            pub_str = item.get("publish_at", "")
+            if pub_str and pub_str != "IMMEDIATE":
+                dt = datetime.datetime.fromisoformat(pub_str.replace("Z", "+00:00")).astimezone()
+                if latest_dt is None or dt > latest_dt:
+                    latest_dt = dt
         except Exception:
             pass
 
@@ -249,8 +255,15 @@ def calculate_next_slots(count, channel=None, interval_hours=3):
     if latest_dt and latest_dt > local_now + datetime.timedelta(minutes=10) and len(queue) > 0:
         already_scheduled = len(queue)
         first_item = queue[0]
-        first_dt = datetime.datetime.fromisoformat(first_item["publish_at"].replace("Z", "+00:00")).astimezone()
-        base_date = first_dt.date()
+        first_pub = first_item.get("publish_at", "")
+        if first_pub and first_pub != "IMMEDIATE":
+            try:
+                first_dt = datetime.datetime.fromisoformat(first_pub.replace("Z", "+00:00")).astimezone()
+                base_date = first_dt.date()
+            except Exception:
+                base_date = local_now.date()
+        else:
+            base_date = local_now.date()
 
         for i in range(count):
             idx = already_scheduled + i
@@ -271,11 +284,16 @@ def calculate_next_slots(count, channel=None, interval_hours=3):
                 candidate = day_base + datetime.timedelta(hours=s_offset)
                 if candidate > local_now + datetime.timedelta(minutes=15):
                     candidate_slots.append(candidate.astimezone(datetime.timezone.utc))
-                    if len(candidate_slots) == count:
+                    if len(candidate_slots) >= count + (1 if first_immediate else 0):
                         break
-            if len(candidate_slots) == count:
+            if len(candidate_slots) >= count + (1 if first_immediate else 0):
                 break
-        slots = candidate_slots
+
+        if first_immediate:
+            # Slot 1 is None -> Upload immediately as PUBLIC!
+            slots = [None] + candidate_slots[:count - 1]
+        else:
+            slots = candidate_slots[:count]
 
     return slots
 
@@ -358,14 +376,29 @@ def format_rich_metadata(clip_info: dict, channel_profile: dict, mp4_name: str =
 
 
 def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt: datetime.datetime, channel_profile: dict = None):
-    """Uploads a video to YouTube Shorts as private with publishAt set."""
+    """Uploads a video to YouTube Shorts: immediate public if publish_at_dt is None, or scheduled private."""
     if not mp4_path.exists():
         print(f"[error] Video file {mp4_path} not found")
         return None
 
     ch_profile = channel_profile or resolve_channel()
     title, desc, tags = format_rich_metadata(clip_info, ch_profile, mp4_path.stem)
-    iso_publish = publish_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    if publish_at_dt is None:
+        status_dict = {
+            "privacyStatus": "public",
+            "selfDeclaredMadeForKids": False,
+        }
+        iso_publish = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        is_immediate = True
+    else:
+        iso_publish = publish_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        status_dict = {
+            "privacyStatus": "private",
+            "publishAt": iso_publish,
+            "selfDeclaredMadeForKids": False,
+        }
+        is_immediate = False
 
     body = {
         "snippet": {
@@ -374,18 +407,17 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
             "tags": tags[:30],  # YouTube API accepts up to ~500 chars of tags
             "categoryId": "20",  # Gaming
         },
-        "status": {
-            "privacyStatus": "private",
-            "publishAt": iso_publish,
-            "selfDeclaredMadeForKids": False,
-        },
+        "status": status_dict,
     }
 
     media = MediaFileUpload(str(mp4_path), mimetype="video/mp4", resumable=True)
     ch_display = ch_profile.get("display_name", "Ghost Clips")
     print(f"\n[uploading -> {ch_display}] {mp4_path.name}")
     print(f"  Title: {title}")
-    print(f"  Scheduled Live: {iso_publish} UTC (in {round((publish_at_dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 3600, 1)} hours)")
+    if is_immediate:
+        print(f"  Status: 🔥 GOING LIVE IMMEDIATELY (PUBLIC)!")
+    else:
+        print(f"  Scheduled Live: {iso_publish} UTC (in {round((publish_at_dt - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 3600, 1)} hours)")
 
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
     response = None
@@ -414,7 +446,10 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
             time.sleep(5)
 
     video_id = response.get("id")
-    print(f"[ok] Video scheduled to {ch_display}! https://youtu.be/{video_id}")
+    if is_immediate:
+        print(f"[ok] Video is now LIVE on {ch_display}! https://youtu.be/{video_id}")
+    else:
+        print(f"[ok] Video scheduled to {ch_display}! https://youtu.be/{video_id}")
 
     # Immediately delete local MP4 to save disk space
     try:
@@ -439,6 +474,8 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
         "video_id": video_id,
         "title": title,
         "publish_at": iso_publish,
+        "privacy_status": "public" if is_immediate else "private",
+        "is_immediate": is_immediate,
         "scheduled_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "url": f"https://youtu.be/{video_id}",
     }
@@ -449,7 +486,52 @@ def upload_and_schedule(youtube, mp4_path: Path, clip_info: dict, publish_at_dt:
     return log_entry
 
 
-def process_folder(outdir: Path, channel=None):
+def process_folder(outdir: Path, channel=None, first_immediate=True):
+    """Processes all rendered MP4s in a folder and schedules them to YouTube for the specified channel."""
+    outdir = Path(outdir)
+    clips_json_path = outdir / "clips.json"
+    if not clips_json_path.exists():
+        print(f"[error] No clips.json found in {outdir}")
+        return []
+
+    try:
+        data = json.loads(clips_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[error] Failed to parse {clips_json_path}: {exc}")
+        return []
+
+    clips = data.get("clips", [])
+    creator = (data.get("source") or {}).get("name") or "Streamer"
+    stream_title = (data.get("source") or {}).get("title") or "GTA 6 Stream"
+
+    # Find pending MP4s
+    pending = []
+    for c in clips:
+        for f in c.get("files", []):
+            mp4_file = outdir / f["file"]
+            if mp4_file.exists():
+                c_copy = dict(c)
+                c_copy["creator"] = creator
+                c_copy["stream_title"] = stream_title
+                pending.append((mp4_file, c_copy))
+
+    if not pending:
+        print(f"[info] No unuploaded MP4s in {outdir}")
+        return []
+
+    ch_profile = resolve_channel(channel)
+    ch_display = ch_profile.get("display_name", "Ghost Clips")
+    print(f"\n[schedule] Found {len(pending)} clip(s) for channel: '{ch_display}' ({outdir.name})")
+    youtube = get_authenticated_service(channel=ch_profile)
+
+    slots = calculate_next_slots(len(pending), channel=ch_profile, interval_hours=3, first_immediate=first_immediate)
+    results = []
+    for (mp4_file, clip_info), slot in zip(pending, slots):
+        res = upload_and_schedule(youtube, mp4_file, clip_info, slot, channel_profile=ch_profile)
+        if res:
+            results.append(res)
+
+    return results
     """Processes all rendered MP4s in a folder and schedules them to YouTube for the specified channel."""
     outdir = Path(outdir)
     clips_json_path = outdir / "clips.json"
