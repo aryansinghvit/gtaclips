@@ -29,9 +29,27 @@ def whisper(name):
             except (ImportError, AttributeError):
                 pass
             from faster_whisper import WhisperModel
-            say(f"loading Whisper '{name}'...", "step")
-            _models[name] = WhisperModel(name, device="cpu", compute_type="int8", num_workers=2,
-                                         download_root=str(MODELS / "whisper"))
+            dev = "cpu"
+            compute = "int8"
+            try:
+                import ctranslate2
+                if ctranslate2.get_cuda_device_count() > 0:
+                    dev = "cuda"
+                    compute = "float16"
+            except Exception:
+                pass
+
+            say(f"loading Whisper '{name}' on {dev.upper()} ({compute})...", "step")
+            try:
+                _models[name] = WhisperModel(name, device=dev, compute_type=compute,
+                                             download_root=str(MODELS / "whisper"))
+            except Exception as exc:
+                if dev != "cpu":
+                    say(f"GPU Whisper initialization fallback to CPU ({exc})", "warn")
+                    _models[name] = WhisperModel(name, device="cpu", compute_type="int8", num_workers=2,
+                                                 download_root=str(MODELS / "whisper"))
+                else:
+                    raise
         return _models[name]
 
 

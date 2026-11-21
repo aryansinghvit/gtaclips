@@ -46,14 +46,17 @@ def sync(part, audio, guess, reach=25.0):
 
 
 @lru_cache(maxsize=1)
-def video_encoder(fast):
-    if not fast:
-        return "libx264"
-    for enc in ("h264_videotoolbox", "h264_nvenc", "h264_qsv", "h264_amf"):
+def video_encoder(fast=True):
+    for enc in ("h264_nvenc", "h264_qsv", "h264_mf", "h264_videotoolbox", "h264_amf"):
         probe_cmd = ["ffmpeg", "-v", "error", "-nostdin", "-f", "lavfi", "-i",
                      "color=c=black:s=256x256:d=0.2", "-c:v", enc, "-f", "null", "-"]
-        if subprocess.run(probe_cmd, capture_output=True).returncode == 0:
-            return enc
+        try:
+            if subprocess.run(probe_cmd, capture_output=True).returncode == 0:
+                say(f"[hardware-accel] Using GPU hardware video encoder: {enc}", "good")
+                return enc
+        except Exception:
+            pass
+    say("[hardware-accel] Using software CPU video encoder: libx264", "warn")
     return "libx264"
 
 
@@ -61,6 +64,10 @@ def _encode_args(enc, cfg):
     if enc == "libx264":
         return ["-c:v", "libx264", "-preset", cfg["x264_preset"], "-crf", str(cfg["crf"]),
                 "-profile:v", "high", "-pix_fmt", "yuv420p"]
+    if enc == "h264_qsv":
+        return ["-c:v", "h264_qsv", "-b:v", "12M", "-maxrate", "16M", "-bufsize", "24M", "-pix_fmt", "nv12"]
+    if enc == "h264_mf":
+        return ["-c:v", "h264_mf", "-b:v", "12M", "-maxrate", "16M", "-bufsize", "24M", "-pix_fmt", "yuv420p"]
     return ["-c:v", enc, "-b:v", "12M", "-maxrate", "16M", "-bufsize", "24M", "-pix_fmt", "yuv420p"]
 
 

@@ -30,7 +30,8 @@ def _look(p):
                    help="styles: all, auto (the AI picks per clip), numbers like 1,3 or names "
                         "(1 hookcard, 2 stack, 3 bubble, 4 cinematic, 5 news). See `styles`.")
     p.add_argument("--accent", help="accent colour as hex, e.g. FF3B3B")
-    p.add_argument("--fast", action="store_true", help="hardware video encoding if available")
+    p.add_argument("--fast", action="store_true", default=True, help="hardware video encoding if available (default: True)")
+    p.add_argument("--no-fast", dest="fast", action="store_false", help="force software CPU video encoding")
 
 
 def parser():
