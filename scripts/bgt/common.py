@@ -18,13 +18,18 @@ IS_WIN = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
 
 if IS_WIN:
-    # Ensure WinGet installed tools (like Gyan.FFmpeg) are reachable in PATH
-    winget_pkgs = Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages"
-    if winget_pkgs.exists():
-        for bin_dir in winget_pkgs.glob("**/bin"):
-            if (bin_dir / "ffmpeg.exe").exists():
-                os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
-                break
+    # Prioritize NVIDIA NVENC compatible FFmpeg build (compatible with Nvidia Driver 591.44)
+    nv_ffmpeg = Path.home() / ".beyondgtaclips" / "ffmpeg-7.1" / "ffmpeg-7.1-essentials_build" / "bin"
+    if (nv_ffmpeg / "ffmpeg.exe").exists():
+        os.environ["PATH"] = str(nv_ffmpeg) + os.pathsep + os.environ["PATH"]
+    else:
+        # Fallback to WinGet installed tools
+        winget_pkgs = Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages"
+        if winget_pkgs.exists():
+            for bin_dir in winget_pkgs.glob("**/bin"):
+                if (bin_dir / "ffmpeg.exe").exists():
+                    os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
+                    break
 
     # Ensure pip installed NVIDIA CUDA/cuBLAS/cuDNN DLLs are reachable in PATH & dll_directory
     try:
