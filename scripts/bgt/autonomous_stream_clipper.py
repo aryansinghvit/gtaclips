@@ -68,6 +68,109 @@ def save_stream_progress(stream_key, completed_chunks):
         pass
 
 
+def generate_viral_metadata(creator, txt, lang="en", seed=0):
+    """Generates punchy, curiosity-gap on-screen headlines, titles, and hooks."""
+    words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", "", txt).split() if len(w) > 1]
+    short_phrase = " ".join(words[:4]).strip()
+    clean_tag = re.sub(r"[^a-zA-Z0-9]", "", creator.lower()) or "gaming"
+
+    if lang == "hi":
+        curiosity_headlines = [
+            "YE KYA HO GAYA BHAI?! 💀",
+            "END MISS MAT KARNA! 😱",
+            "BHAI KA DIMAAG HIL GAYA! 😂",
+            "YE KISI NE NAHI SOCHA THA 💀",
+            "BHAI KA REACTION DEKHO 😭",
+            "ISKE SAATH BADA SCAM HUA 💀",
+            "BHAI KO PATA BHI NAHI CHALA 😂",
+            "AISA KAISE HO SAKTA HAI?! 🤯",
+            "YE SCENE MISSED HO JATA! 🔥",
+            "POORA SCENE DEKHO BHAI 💀",
+            "BHAI KE TOH HOSH UD GAYE 😭",
+            "YE SCENE DEKHNA ZAROORI HAI 😱",
+            "BHAI BILKUL READY NAHI THA 💀",
+            "WAIT FOR THE TWIST AT END 💀",
+            "BHAI NE YE KYA KAR DIYA?! 😂",
+        ]
+        curiosity_hooks = [
+            f"{creator} ke saath GTA 6 me *YE KYA HO GAYA*?! 💀",
+            f"{creator} ka reaction dekh kar *DIMAAG HIL JAYEGA* 😂",
+            f"GTA 6 me {creator} ke sath ho gaya *BADA SCAM* 💀",
+            f"{creator} ne *KISI NE NAHI SOCHA THA* ye hoga 😱",
+            f"End tak dekho {creator} ke saath *KYA SCENE HUA* 💀",
+            f"GTA 6 me {creator} ke toh *HOSH UD GAYE* 🤯",
+            f"{creator} bilkul bhi *READY NAHI THA* is scene ke liye 😂",
+            f"Aisa twist {creator} ne kabhi *EXPECT NAHI KIYA THA* 💀",
+            f"{creator} ka ye moment dekh kar *HASI NAHI RUK SAKTI* 😭",
+            f"GTA 6 me {creator} ne ye *KYA KAR DIYA* bhai 😱",
+            f"Wait till the end {creator} ka *EPIC REACTION* dekhne ke liye 😂",
+        ]
+        titles = [
+            "YE KYA HUA", "END MISS NA KARNA", "DIMAAG HIL GAYA", "KISI NE NAHI SOCHA",
+            "REACTION DEKHO", "BADA SCAM", "PATA NAHI CHALA", "AISA KAISE", "SCENE MISSED",
+            "POORA SCENE DEKHO", "HOSH UD GAYE", "UNEXPECTED SCENE"
+        ]
+        hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
+    else:
+        curiosity_headlines = [
+            "BRO WAS NOT READY 💀",
+            "WAIT FOR HIS REACTION... 😭",
+            "NO WAY THIS JUST HAPPENED 😱",
+            "HE THOUGHT HE WAS SAFE 💀",
+            "BRO LOST HIS MIND 😭",
+            "WATCH TILL THE VERY END 💀",
+            "HOW DID HE SURVIVE THIS?! 🤯",
+            "HE DID NOT SEE IT COMING 💀",
+            "BRO REGRETTED THIS INSTANTLY 😭",
+            "HIS REACTION SAYS IT ALL 💀",
+            "BRO FORGOT HE WAS LIVE 😭",
+            "NOBODY EXPECTED THIS 😱",
+            "BRO'S SOUL LEFT HIS BODY 💀",
+            "WAIT TILL YOU SEE THIS... 😭",
+            "HE ACTUALLY TRIED THIS 💀",
+            "COMPLETELY CAUGHT OFF GUARD 🤯",
+        ]
+        curiosity_hooks = [
+            f"{creator} was *NOT READY* for what happened in GTA 6 😭",
+            f"{creator} really thought he was *SAFE* in GTA 6 💀",
+            f"Nobody expected *THIS* to happen to {creator} in GTA 6 😱",
+            f"{creator}'s honest reaction to this GTA 6 moment is *GOLD* 😂",
+            f"{creator} completely *LOST HIS MIND* during this GTA 6 scene 💀",
+            f"Wait until {creator} realizes what *JUST HAPPENED* in GTA 6 😭",
+            f"How did {creator} even *SURVIVE* this in GTA 6?! 🤯",
+            f"{creator} instantly *REGRETTED* doing this in GTA 6 💀",
+            f"{creator}'s soul literally *LEFT HIS BODY* in GTA 6 😭",
+            f"You won't believe what {creator} *JUST FOUND* in GTA 6 😱",
+            f"{creator} forgot he was *STREAMING LIVE* in GTA 6 😂",
+            f"Watch till the end to see {creator}'s *FINAL REACTION* in GTA 6 💀",
+        ]
+        titles = [
+            "BRO NOT READY", "WAIT FOR IT", "NO WAY MOMENT", "HE THOUGHT SAFE",
+            "LOST HIS MIND", "WATCH TILL END", "SURVIVAL MOMENT", "OFF GUARD",
+            "INSTANT REGRET", "REACTION PEAK", "FORGOT HE WAS LIVE", "UNEXPECTED TWIST"
+        ]
+        hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
+
+    h_idx = abs(hash(f"{creator}_{txt}_{seed}"))
+    headline = curiosity_headlines[h_idx % len(curiosity_headlines)]
+    if short_phrase and len(short_phrase) >= 5 and len(short_phrase) <= 22 and (h_idx % 3 == 0):
+        if lang == "hi":
+            headline = f'BHAI NE BOLA "{short_phrase.upper()}" 💀'
+        else:
+            headline = f'BRO REALLY SAID "{short_phrase.upper()}" 💀'
+
+    hook = curiosity_hooks[h_idx % len(curiosity_hooks)]
+    title = titles[h_idx % len(titles)]
+
+    clean_quote = txt.strip()[:80].replace('"', "'")
+    if lang == "hi":
+        scene_summary = f"{creator} ka GTA 6 me ye unbelievable moment dekhne layak hai! Is scene me: '{clean_quote}', pura scene dekho."
+    else:
+        scene_summary = f"{creator} experiences an insane chain of events in GTA 6! At this moment: '{clean_quote}', leaving chat stunned."
+
+    return headline, hook, title, scene_summary, hashtags
+
+
 def solve_agent_tasks(waiting_items, default_creator="Streamer", channel_profile=None):
     """Autonomously answers highlights prompt files with rich, unique per-clip metadata."""
     ch_info = channel_profile or {}
@@ -88,7 +191,6 @@ def solve_agent_tasks(waiting_items, default_creator="Streamer", channel_profile
 
         m_creator = re.search(r"Streamer:\s*(.+)", prompt_text)
         creator = m_creator.group(1).strip() if m_creator else default_creator
-        clean_tag = re.sub(r"[^a-zA-Z0-9]", "", creator.lower()) or "gaming"
 
         # Scan transcript lines for volume/chat spikes
         lines = prompt_text.splitlines()
@@ -141,27 +243,10 @@ def solve_agent_tasks(waiting_items, default_creator="Streamer", channel_profile
             start_t = max(lo, t - 6.0)
             end_t = min(hi, t + 28.0)
             if all(abs(p["start"] - start_t) > 25.0 for p in picks):
-                words_list = txt.split()
-                clean_title = " ".join(words_list[:4]).upper() or "VIRAL MOMENT"
-                phrase = " ".join(words_list[:6]).replace("*", "")
-
-                # Language-specific titles, hooks, scene synopses & tags
-                if lang == "hi":
-                    if len(phrase) > 4:
-                        hook = f"{creator} jab *{phrase}* in *GTA 6* 😂"
-                    else:
-                        hook = f"{creator} *HOSH UD GAYE* in *GTA 6* 💀"
-                    headline = f"{creator} reacts to GTA 6 Hindi gameplay"
-                    scene_summary = f"{creator} ka GTA 6 me ye scene dekh kar dimaag hil gaya! Yaha dekhiye jab '{phrase}' hua tab kya reaction tha."
-                    hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
-                else:
-                    if len(phrase) > 4:
-                        hook = f"{creator} when *{phrase}* in *GTA 6* 😭"
-                    else:
-                        hook = f"{creator} was *NOT ready* for what happened in *GTA 6* 😭"
-                    headline = f"{creator} reacts to crazy GTA 6 moment"
-                    scene_summary = f"{creator} was completely caught off guard in GTA 6! Here is the moment where '{phrase}' happened during the stream."
-                    hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
+                phrase = " ".join(txt.split()[:6]).replace("*", "")
+                headline, hook, clean_title, scene_summary, hashtags = generate_viral_metadata(
+                    creator, txt, lang=lang, seed=len(picks) + int(t)
+                )
 
                 picks.append({
                     "start": round(start_t, 1),
@@ -208,23 +293,27 @@ def solve_story_tasks(waiting_items, default_creator="Streamer", channel_profile
         start = float(m_cut.group(1)) if m_cut else 14.0
         end = float(m_cut.group(2)) if m_cut else 45.0
 
-        m_hook = re.search(r'Its hook.*?"(.*?)"', prompt_text, re.DOTALL)
-        hook = m_hook.group(1) if m_hook else f"{default_creator} reacts to crazy GTA 6 gameplay 😭"
-
         m_creator = re.search(r"Streamer:\s*(.+)", prompt_text)
         creator = m_creator.group(1).strip() if m_creator else default_creator
-        clean_tag = re.sub(r"[^a-zA-Z0-9]", "", creator.lower()) or "gaming"
 
-        if lang == "hi":
-            scene_summary = f"{creator} ka GTA 6 gameplay me ye unexpected moment dekhne layak hai! Pura scene dekho."
-            hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
-        else:
-            scene_summary = f"{creator} reacts to an insane chain of events during this GTA 6 stream session!"
-            hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
+        # Extract real dialogue from transcript block if present
+        m_text = re.search(r"TRANSCRIPT START\s*(.*?)\s*TRANSCRIPT END", prompt_text, re.DOTALL)
+        dialogue = ""
+        if m_text:
+            lines_in_cut = []
+            for l in m_text.group(1).strip().splitlines():
+                clean_l = re.sub(r"\[\d+(?:\.\d+)?\]", "", l).strip()
+                if clean_l:
+                    lines_in_cut.append(clean_l)
+            dialogue = " ".join(lines_in_cut)
+
+        headline, hook, title, scene_summary, hashtags = generate_viral_metadata(
+            creator, dialogue, lang=lang, seed=int(start * 10)
+        )
 
         answer = {
             "verdict": "keep",
-            "seen": "Streamer reaction and gameplay on screen with clear setup and payoff.",
+            "seen": f"{creator} reaction and gameplay during '{dialogue[:60]}'",
             "trigger": round(start + 5.0, 1),
             "payoff": round(end - 4.0, 1),
             "start": round(start, 1),
@@ -234,14 +323,14 @@ def solve_story_tasks(waiting_items, default_creator="Streamer", channel_profile
                 f"Can {creator} survive this in GTA 6?",
                 f"{creator} reacts to GTA 6 chaos",
             ],
-            "title": "MOMENT REEL",
-            "headline": f"{creator} in GTA 6 gameplay",
+            "title": title,
+            "headline": headline,
             "scene_summary": scene_summary,
             "caption": scene_summary,
             "hashtags": hashtags,
         }
         a_file.write_text(json.dumps(answer, indent=2), encoding="utf-8")
-        say(f"  [autonomous-brain] verified story check for {q_file.stem}", "good")
+        say(f"  [autonomous-brain] verified story check for {q_file.stem} ({headline})", "good")
 
 
 def run_chunk_with_auto_brain(url, opts, cfg, creator_name="Streamer", channel_profile=None):

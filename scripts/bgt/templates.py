@@ -218,9 +218,16 @@ def stack_title(pick):
     """Short statement for the split-screen title: the headline when it is short, else the title."""
     clean = lambda s: " ".join(art.re.sub(r"[*#]", "", s or "").split())
     head, title = clean(pick.get("headline")), clean(pick.get("title"))
+
+    # Guard against legacy generic headlines
+    if head and any(bad in head.lower() for bad in ["in gta 6 gameplay", "reacts to crazy", "reacts to gta 6"]):
+        head = None
+
     if head and len(head) <= 40 and len(head.split()) <= 8:
         return head
-    return title or head
+    if title and title.upper() != "MOMENT REEL":
+        return title
+    return head or "BRO WAS NOT READY 💀"
 
 
 def bubble(g, ctx):
