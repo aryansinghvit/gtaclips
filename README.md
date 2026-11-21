@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="assets/brand/logo-wide.jpg" alt="Beyond GTA Clips" width="720">
+  <img src="assets/brand/logo-wide.jpg" alt="Aryan GTA Clips" width="720">
 </p>
 
 <h2 align="center">Streamers play GTA 6 for 10 hours.<br>You post the best 30 seconds and get paid per view.</h2>
 
 <p align="center">
-  <b>Beyond GTA Clips</b> watches the stream for you, finds the moments that go viral<br>
+  <b>Aryan GTA Clips</b> watches the stream for you, finds the moments that go viral<br>
   and hands you finished 9:16 reels. Free. Runs on your computer. Works in Claude and ChatGPT.
 </p>
 
@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/brand/demo.gif" alt="Five real reels made by Beyond GTA Clips" width="100%">
+  <img src="assets/brand/demo.gif" alt="Five real reels made by Aryan GTA Clips" width="100%">
   <br>
   <sub>Real reels, made automatically from GTA 6 launch streams. Left to right: three new <b>Hook card</b> clips
   (Kai Cenat's NPC fight, Kai's prison gang pick, Typical Gamer's "9% done"), then <b>Stack</b> and <b>Bubble</b> with the streamer's face.</sub>
