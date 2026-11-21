@@ -311,6 +311,33 @@ def format_rich_metadata(clip_info: dict, channel_profile: dict, mp4_name: str =
     else:
         title = raw_hook[:95]
 
+    # Deduplicate title against all previously uploaded/scheduled videos for this channel
+    try:
+        existing_queue = load_queue_log(channel=channel_profile)
+        existing_titles = {item.get("title", "").strip().lower() for item in existing_queue}
+    except Exception:
+        existing_titles = set()
+
+    if title.strip().lower() in existing_titles:
+        quote = clip_info.get("quote") or ""
+        q_words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", "", quote).split() if len(w) > 1]
+        start_sec = clip_info.get("start", 0)
+        h, m = int(start_sec // 3600), int((start_sec % 3600) // 60)
+        time_tag = f"{h}:{m:02d}" if h > 0 else f"{m}m"
+
+        if q_words:
+            diff = f'("{q_words[0].title()}")'
+        else:
+            diff = f"(Cut at {time_tag})"
+
+        base_h = raw_hook.split("#")[0].strip()
+        title = f"{base_h[:70]} {diff} #Shorts"
+
+        counter = 2
+        while title.strip().lower() in existing_titles:
+            title = f"{base_h[:65]} (Part {counter}) #Shorts"
+            counter += 1
+
     # 2. UNIQUE RICH DESCRIPTION
     scene_summary = clip_info.get("scene_summary") or clip_info.get("seen") or clip_info.get("caption") or ""
     quote = clip_info.get("quote") or ""
@@ -323,6 +350,11 @@ def format_rich_metadata(clip_info: dict, channel_profile: dict, mp4_name: str =
             "👉 Did you notice what happened in the background? 👀",
             "👉 Would you survive this in GTA 6? Let me know below! 👇",
             "👉 Share this with a friend who is waiting for GTA 6! 🔥",
+            "👉 Is this the craziest GTA 6 moment so far? Tell me below! 💀",
+            "👉 What was the funniest part of this clip? Drop it below! 😂",
+            "👉 Would you have reacted the same way as the streamer? 👇",
+            "👉 Who is your favorite GTA 6 protagonist: Lucia or Jason? 🔥",
+            "👉 Drop a 💀 in the comments if this made you laugh!",
         ]
         ctas_hi = [
             "👉 Agar aap is situation me hote toh kya karte? Comment me batao! 👇",
@@ -330,8 +362,13 @@ def format_rich_metadata(clip_info: dict, channel_profile: dict, mp4_name: str =
             "👉 Kya aapne notice kiya piche kya hua? 👀",
             "👉 Apne dosto ke sath share karo jo GTA 6 ka wait kar rahe hain! 🔥",
             "👉 GTA 6 me sabse pehle aap kya karoge? Niche batao! 👇",
+            "👉 Bhai ka reaction kaisa laga? Comment me batao! 😂",
+            "👉 Kya aapko lagta hai GTA 6 ab tak ka sabse best game hoga? 🔥",
+            "👉 Is clip ka sabse funny part kaun sa tha? Niche comment karo! 💀",
+            "👉 Agar aap khel rahe hote toh bach pate? Comment me batao! 👇",
+            "👉 Video pasand aayi toh comment me ek 💀 drop karo!",
         ]
-        h_idx = abs(hash(raw_hook)) % 5
+        h_idx = abs(hash(raw_hook + str(clip_info.get("start", 0)))) % len(ctas_hi if lang == "hi" else ctas_en)
         cta = (ctas_hi if lang == "hi" else ctas_en)[h_idx]
 
     desc_lines = []
@@ -339,6 +376,11 @@ def format_rich_metadata(clip_info: dict, channel_profile: dict, mp4_name: str =
         desc_lines.append(scene_summary)
     if quote:
         desc_lines.append(f'\n💬 "{quote}"')
+
+    start_sec = clip_info.get("start")
+    if start_sec is not None:
+        h, m, s = int(start_sec // 3600), int((start_sec % 3600) // 60), int(start_sec % 60)
+        desc_lines.append(f"⏱️ Stream Timestamp: {h:02d}:{m:02d}:{s:02d}")
 
     desc_lines.append(f"\n{cta}")
     desc_lines.append(f"🔔 Subscribe to @{ch_name} for daily viral GTA 6 clips!")

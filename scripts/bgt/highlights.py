@@ -320,6 +320,10 @@ def tidy(pick, words, cfg, creator=None):
     out["title"] = _plain(_text(pick.get("title"), 60))
     out["headline"] = _plain(_text(pick.get("headline") or pick.get("title"), 90))
     out["caption"] = _plain(_text(pick.get("caption"), 220))
+    if pick.get("scene_summary"):
+        out["scene_summary"] = _plain(_text(pick.get("scene_summary"), 250))
+    if pick.get("quote"):
+        out["quote"] = _plain(_text(pick.get("quote"), 150))
     tags = pick.get("hashtags") or []
     if isinstance(tags, str):
         tags = tags.split()

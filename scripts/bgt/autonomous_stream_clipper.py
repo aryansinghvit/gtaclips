@@ -71,102 +71,148 @@ def save_stream_progress(stream_key, completed_chunks):
 def generate_viral_metadata(creator, txt, lang="en", seed=0):
     """Generates punchy, curiosity-gap on-screen headlines, titles, and hooks."""
     words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", "", txt).split() if len(w) > 1]
-    short_phrase = " ".join(words[:4]).strip()
     clean_tag = re.sub(r"[^a-zA-Z0-9]", "", creator.lower()) or "gaming"
+    clean_quote = txt.strip()[:90].replace('"', "'")
+
+    if len(words) >= 2:
+        short_phrase = " ".join(words[:min(5, len(words))]).strip()
+    elif len(words) == 1:
+        short_phrase = words[0].strip()
+    else:
+        short_phrase = ""
+
+    h_idx = abs(hash(f"{creator}_{txt}_{seed}"))
 
     if lang == "hi":
         curiosity_headlines = [
-            "YE KYA HO GAYA BHAI?! 💀",
-            "END MISS MAT KARNA! 😱",
-            "BHAI KA DIMAAG HIL GAYA! 😂",
-            "YE KISI NE NAHI SOCHA THA 💀",
-            "BHAI KA REACTION DEKHO 😭",
-            "ISKE SAATH BADA SCAM HUA 💀",
-            "BHAI KO PATA BHI NAHI CHALA 😂",
-            "AISA KAISE HO SAKTA HAI?! 🤯",
-            "YE SCENE MISSED HO JATA! 🔥",
-            "POORA SCENE DEKHO BHAI 💀",
-            "BHAI KE TOH HOSH UD GAYE 😭",
-            "YE SCENE DEKHNA ZAROORI HAI 😱",
-            "BHAI BILKUL READY NAHI THA 💀",
-            "WAIT FOR THE TWIST AT END 💀",
-            "BHAI NE YE KYA KAR DIYA?! 😂",
+            "YE KYA HO GAYA BHAI?! 💀", "END MISS MAT KARNA! 😱", "BHAI KA DIMAAG HIL GAYA! 😂",
+            "YE KISI NE NAHI SOCHA THA 💀", "BHAI KA REACTION DEKHO 😭", "ISKE SAATH BADA SCAM HUA 💀",
+            "BHAI KO PATA BHI NAHI CHALA 😂", "AISA KAISE HO SAKTA HAI?! 🤯", "YE SCENE MISSED HO JATA! 🔥",
+            "POORA SCENE DEKHO BHAI 💀", "BHAI KE TOH HOSH UD GAYE 😭", "YE SCENE DEKHNA ZAROORI HAI 😱",
+            "BHAI BILKUL READY NAHI THA 💀", "WAIT FOR THE TWIST AT END 💀", "BHAI NE YE KYA KAR DIYA?! 😂",
+            "ISNE TOH HAD KAR DI! 💀", "BHAI KE SATH DHOKA HO GAYA 💀", "YE KYA BAVASIR HAI YAAR! 😂",
+            "KISI KO PATA BHI NAHI CHALA 😭", "YE TOH ALAG HI LEVEL THA 🤯", "BHAI KA EPIC REACTION 💀",
+            "HOSH UDANE WALA SCENE 😱", "ISKE BAAD KYA HUA DEKHO 💀", "KABHI NAHI DEKHA AISA TWIST 😂",
+            "GTA 6 KA SABSE CRAZY SCENE 🔥",
         ]
-        curiosity_hooks = [
-            f"{creator} ke saath GTA 6 me *YE KYA HO GAYA*?! 💀",
-            f"{creator} ka reaction dekh kar *DIMAAG HIL JAYEGA* 😂",
-            f"GTA 6 me {creator} ke sath ho gaya *BADA SCAM* 💀",
-            f"{creator} ne *KISI NE NAHI SOCHA THA* ye hoga 😱",
-            f"End tak dekho {creator} ke saath *KYA SCENE HUA* 💀",
-            f"GTA 6 me {creator} ke toh *HOSH UD GAYE* 🤯",
-            f"{creator} bilkul bhi *READY NAHI THA* is scene ke liye 😂",
-            f"Aisa twist {creator} ne kabhi *EXPECT NAHI KIYA THA* 💀",
-            f"{creator} ka ye moment dekh kar *HASI NAHI RUK SAKTI* 😭",
-            f"GTA 6 me {creator} ne ye *KYA KAR DIYA* bhai 😱",
-            f"Wait till the end {creator} ka *EPIC REACTION* dekhne ke liye 😂",
-        ]
+        if short_phrase and len(short_phrase) >= 4:
+            quote_hooks = [
+                f'Jab {creator} ne bola "{short_phrase}" in GTA 6 😂',
+                f'{creator} ke saath ye kya ho gaya jab "{short_phrase}" 💀',
+                f'{creator} ka reaction dekho jab bola "{short_phrase}" 😭',
+                f'GTA 6 me {creator} ke sath BADA SCAM jab "{short_phrase}" 💀',
+                f'{creator} bilkul READY nahi tha jab bola "{short_phrase}" 😱',
+                f'{creator} ke hosh ud gaye jab bolte hain "{short_phrase}" 🤯',
+                f'End miss mat karna: {creator} ne bola "{short_phrase}" 😂',
+                f'Aisa twist {creator} ne expect nahi kiya tha: "{short_phrase}" 💀',
+                f'Bhai ne ye kya bol diya GTA 6 me: "{short_phrase}" 💀',
+                f'Pura scene dekho {creator} ka reaction: "{short_phrase}" 😭',
+                f'{creator} ka ye moment dekh kar hasi nahi ruk sakti: "{short_phrase}" 😂',
+                f'{creator} ko pata bhi nahi chala jab "{short_phrase}" hua 😱',
+                f'Wait till the end {creator} ka epic reaction: "{short_phrase}" 💀',
+                f'{creator} ne GTA 6 me hadd kar di jab bola "{short_phrase}" 😭',
+                f'GTA 6 ka sabse unhinged scene: {creator} ne bola "{short_phrase}" 💀',
+            ]
+            hook = quote_hooks[h_idx % len(quote_hooks)]
+        else:
+            action_hooks = [
+                f"{creator} ke saath GTA 6 me *YE KYA HO GAYA*?! 💀",
+                f"{creator} ka reaction dekh kar *DIMAAG HIL JAYEGA* 😂",
+                f"GTA 6 me {creator} ke sath ho gaya *BADA SCAM* 💀",
+                f"{creator} ne *KISI NE NAHI SOCHA THA* ye hoga 😱",
+                f"End tak dekho {creator} ke saath *KYA SCENE HUA* 💀",
+                f"GTA 6 me {creator} ke toh *HOSH UD GAYE* 🤯",
+                f"{creator} bilkul bhi *READY NAHI THA* is scene ke liye 😂",
+                f"Aisa twist {creator} ne kabhi *EXPECT NAHI KIYA THA* 💀",
+                f"{creator} ka ye moment dekh kar *HASI NAHI RUK SAKTI* 😭",
+                f"GTA 6 me {creator} ne ye *KYA KAR DIYA* bhai 😱",
+                f"Wait till the end {creator} ka *EPIC REACTION* dekhne ke liye 😂",
+                f"GTA 6 ka sabse dangerous moment {creator} ke saath 💀",
+                f"{creator} ka dimaag kharab ho gaya is GTA 6 fail par 😭",
+                f"Ye scene miss mat karna: {creator} in GTA 6 😱",
+                f"{creator} ke chat ne pura stream hila diya is moment par 😂",
+            ]
+            hook = action_hooks[h_idx % len(action_hooks)]
+
+        if short_phrase and len(short_phrase) >= 5 and len(short_phrase) <= 24 and (h_idx % 2 == 0):
+            headline = f'BHAI NE BOLA "{short_phrase.upper()}" 💀'
+        else:
+            headline = curiosity_headlines[h_idx % len(curiosity_headlines)]
+
         titles = [
             "YE KYA HUA", "END MISS NA KARNA", "DIMAAG HIL GAYA", "KISI NE NAHI SOCHA",
             "REACTION DEKHO", "BADA SCAM", "PATA NAHI CHALA", "AISA KAISE", "SCENE MISSED",
-            "POORA SCENE DEKHO", "HOSH UD GAYE", "UNEXPECTED SCENE"
+            "POORA SCENE DEKHO", "HOSH UD GAYE", "UNEXPECTED SCENE", "ALAG LEVEL",
+            "BHAI KA REACTION", "DHOKA HO GAYA", "HAD HO GAYI", "CRAZY MOMENT"
         ]
+        title = titles[h_idx % len(titles)]
         hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#GTA6Hindi", "#Gaming", "#Viral"]
+        scene_summary = f"{creator} ka GTA 6 gameplay me ye unbelievable moment dekhne layak hai! Is scene me: '{clean_quote or 'unexpected chaos'}', pura scene dekho."
+
     else:
         curiosity_headlines = [
-            "BRO WAS NOT READY 💀",
-            "WAIT FOR HIS REACTION... 😭",
-            "NO WAY THIS JUST HAPPENED 😱",
-            "HE THOUGHT HE WAS SAFE 💀",
-            "BRO LOST HIS MIND 😭",
-            "WATCH TILL THE VERY END 💀",
-            "HOW DID HE SURVIVE THIS?! 🤯",
-            "HE DID NOT SEE IT COMING 💀",
-            "BRO REGRETTED THIS INSTANTLY 😭",
-            "HIS REACTION SAYS IT ALL 💀",
-            "BRO FORGOT HE WAS LIVE 😭",
-            "NOBODY EXPECTED THIS 😱",
-            "BRO'S SOUL LEFT HIS BODY 💀",
-            "WAIT TILL YOU SEE THIS... 😭",
-            "HE ACTUALLY TRIED THIS 💀",
-            "COMPLETELY CAUGHT OFF GUARD 🤯",
+            "BRO WAS NOT READY 💀", "WAIT FOR HIS REACTION... 😭", "NO WAY THIS JUST HAPPENED 😱",
+            "HE THOUGHT HE WAS SAFE 💀", "BRO LOST HIS MIND 😭", "WATCH TILL THE VERY END 💀",
+            "HOW DID HE SURVIVE THIS?! 🤯", "HE DID NOT SEE IT COMING 💀", "BRO REGRETTED THIS INSTANTLY 😭",
+            "HIS REACTION SAYS IT ALL 💀", "BRO FORGOT HE WAS LIVE 😭", "NOBODY EXPECTED THIS 😱",
+            "BRO'S SOUL LEFT HIS BODY 💀", "WAIT TILL YOU SEE THIS... 😭", "HE ACTUALLY TRIED THIS 💀",
+            "COMPLETELY CAUGHT OFF GUARD 🤯", "BRO GOT INSTANT KARMA 💀", "HE CANNOT BE SERIOUS 😭",
+            "WHAT JUST HAPPENED HERE?! 🤯", "THIS BROKE THE STREAM 💀", "HE DID NOT EXPECT THIS 😭",
+            "BRO COULD NOT BELIEVE IT 😱", "THE AUDACITY OF THIS NPC 💀", "HE WAS SPEECHLESS 😂",
+            "THE CRAZIEST GTA 6 MOMENT 🔥",
         ]
-        curiosity_hooks = [
-            f"{creator} was *NOT READY* for what happened in GTA 6 😭",
-            f"{creator} really thought he was *SAFE* in GTA 6 💀",
-            f"Nobody expected *THIS* to happen to {creator} in GTA 6 😱",
-            f"{creator}'s honest reaction to this GTA 6 moment is *GOLD* 😂",
-            f"{creator} completely *LOST HIS MIND* during this GTA 6 scene 💀",
-            f"Wait until {creator} realizes what *JUST HAPPENED* in GTA 6 😭",
-            f"How did {creator} even *SURVIVE* this in GTA 6?! 🤯",
-            f"{creator} instantly *REGRETTED* doing this in GTA 6 💀",
-            f"{creator}'s soul literally *LEFT HIS BODY* in GTA 6 😭",
-            f"You won't believe what {creator} *JUST FOUND* in GTA 6 😱",
-            f"{creator} forgot he was *STREAMING LIVE* in GTA 6 😂",
-            f"Watch till the end to see {creator}'s *FINAL REACTION* in GTA 6 💀",
-        ]
+
+        if short_phrase and len(short_phrase) >= 4:
+            quote_hooks = [
+                f'{creator} when "{short_phrase}" in GTA 6 😭',
+                f'When {creator} really said "{short_phrase}" in GTA 6 💀',
+                f'{creator}\'s honest reaction to "{short_phrase}" in GTA 6 😂',
+                f'{creator} was NOT READY when "{short_phrase}" in GTA 6 😱',
+                f'Nobody expected {creator} to say "{short_phrase}" in GTA 6 💀',
+                f'{creator} completely lost it at "{short_phrase}" in GTA 6 😭',
+                f'How did {creator} survive "{short_phrase}" in GTA 6?! 🤯',
+                f'{creator} instantly regretted "{short_phrase}" in GTA 6 💀',
+                f'{creator}\'s soul literally left his body at "{short_phrase}" 😭',
+                f'Watch {creator}\'s face when "{short_phrase}" in GTA 6 💀',
+                f'{creator} forgot he was live when "{short_phrase}" 😂',
+                f'{creator} could NOT believe "{short_phrase}" in GTA 6 😱',
+                f'{creator} caught completely off guard by "{short_phrase}" 💀',
+                f'This GTA 6 moment broke {creator}: "{short_phrase}" 💀',
+                f'{creator}\'s reaction to this GTA 6 scene is priceless: "{short_phrase}" 😭',
+            ]
+            hook = quote_hooks[h_idx % len(quote_hooks)]
+        else:
+            action_hooks = [
+                f"{creator} was *NOT READY* for what happened in GTA 6 😭",
+                f"{creator} really thought he was *SAFE* in GTA 6 💀",
+                f"Nobody expected *THIS* to happen to {creator} in GTA 6 😱",
+                f"{creator}'s honest reaction to this GTA 6 moment is *GOLD* 😂",
+                f"{creator} completely *LOST HIS MIND* during this GTA 6 scene 💀",
+                f"Wait until {creator} realizes what *JUST HAPPENED* in GTA 6 😭",
+                f"How did {creator} even *SURVIVE* this in GTA 6?! 🤯",
+                f"{creator} instantly *REGRETTED* doing this in GTA 6 💀",
+                f"{creator}'s soul literally *LEFT HIS BODY* in GTA 6 😭",
+                f"You won't believe what {creator} *JUST FOUND* in GTA 6 😱",
+                f"Chat went absolutely CRAZY during this {creator} moment 💀",
+                f"{creator} encounters the rarest glitch in GTA 6 history 😱",
+                f"This GTA 6 moment had {creator} screaming at 3 AM 😭",
+            ]
+            hook = action_hooks[h_idx % len(action_hooks)]
+
+        if short_phrase and len(short_phrase) >= 5 and len(short_phrase) <= 24 and (h_idx % 2 == 0):
+            headline = f'BRO REALLY SAID "{short_phrase.upper()}" 💀'
+        else:
+            headline = curiosity_headlines[h_idx % len(curiosity_headlines)]
+
         titles = [
             "BRO NOT READY", "WAIT FOR IT", "NO WAY MOMENT", "HE THOUGHT SAFE",
             "LOST HIS MIND", "WATCH TILL END", "SURVIVAL MOMENT", "OFF GUARD",
-            "INSTANT REGRET", "REACTION PEAK", "FORGOT HE WAS LIVE", "UNEXPECTED TWIST"
+            "INSTANT REGRET", "REACTION PEAK", "FORGOT HE WAS LIVE", "UNEXPECTED TWIST",
+            "SPEECHLESS", "CHAOS UNLOCKED", "RARE MOMENT", "SOUL LEFT BODY", "INSTANT KARMA"
         ]
+        title = titles[h_idx % len(titles)]
         hashtags = ["#Shorts", "#GTA6", f"#{clean_tag}", "#Gaming", "#ViralShorts"]
-
-    h_idx = abs(hash(f"{creator}_{txt}_{seed}"))
-    headline = curiosity_headlines[h_idx % len(curiosity_headlines)]
-    if short_phrase and len(short_phrase) >= 5 and len(short_phrase) <= 22 and (h_idx % 3 == 0):
-        if lang == "hi":
-            headline = f'BHAI NE BOLA "{short_phrase.upper()}" 💀'
-        else:
-            headline = f'BRO REALLY SAID "{short_phrase.upper()}" 💀'
-
-    hook = curiosity_hooks[h_idx % len(curiosity_hooks)]
-    title = titles[h_idx % len(titles)]
-
-    clean_quote = txt.strip()[:80].replace('"', "'")
-    if lang == "hi":
-        scene_summary = f"{creator} ka GTA 6 me ye unbelievable moment dekhne layak hai! Is scene me: '{clean_quote}', pura scene dekho."
-    else:
-        scene_summary = f"{creator} experiences an insane chain of events in GTA 6! At this moment: '{clean_quote}', leaving chat stunned."
+        scene_summary = f"{creator} experiences an insane chain of events in GTA 6! At this moment: '{clean_quote or 'pure chaos'}', leaving chat stunned."
 
     return headline, hook, title, scene_summary, hashtags
 
