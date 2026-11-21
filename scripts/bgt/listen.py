@@ -56,10 +56,24 @@ def whisper(name):
 def transcribe(model_name, samples, language=None, offset=0.0):
     """[{s, e, w}] word timings (seconds + offset) and the detected language."""
     np.seterr(all="ignore")
-    segments, info = whisper(model_name).transcribe(
-        samples, language=language, word_timestamps=True, vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 400},
-        beam_size=1 if model_name == "tiny" else 4, condition_on_previous_text=False)
+    try:
+        segments, info = whisper(model_name).transcribe(
+            samples, language=language, word_timestamps=True, vad_filter=True,
+            vad_parameters={"min_silence_duration_ms": 400},
+            beam_size=1 if model_name == "tiny" else 4, condition_on_previous_text=False)
+    except Exception as exc:
+        if "cublas" in str(exc).lower() or "cuda" in str(exc).lower():
+            say(f"[listen] GPU transcription error ({exc}); falling back to CPU...", "warn")
+            with _models_lock:
+                from faster_whisper import WhisperModel
+                _models[model_name] = WhisperModel(model_name, device="cpu", compute_type="int8", num_workers=2,
+                                                   download_root=str(MODELS / "whisper"))
+            segments, info = whisper(model_name).transcribe(
+                samples, language=language, word_timestamps=True, vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 400},
+                beam_size=1 if model_name == "tiny" else 4, condition_on_previous_text=False)
+        else:
+            raise
     words = []
     for seg in segments:
         for w in seg.words or []:

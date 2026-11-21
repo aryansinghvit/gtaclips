@@ -26,6 +26,22 @@ if IS_WIN:
                 os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ["PATH"]
                 break
 
+    # Ensure pip installed NVIDIA CUDA/cuBLAS/cuDNN DLLs are reachable in PATH & dll_directory
+    try:
+        import site
+        sp_dirs = site.getsitepackages() if hasattr(site, "getsitepackages") else []
+        for sp in sp_dirs:
+            p_sp = Path(sp)
+            for nv_bin in p_sp.glob("nvidia/*/bin"):
+                if nv_bin.is_dir():
+                    try:
+                        os.add_dll_directory(str(nv_bin))
+                    except Exception:
+                        pass
+                    os.environ["PATH"] = str(nv_bin) + os.pathsep + os.environ["PATH"]
+    except Exception:
+        pass
+
 DATA = Path(os.environ.get("BEYONDGTACLIPS_HOME") or Path.home() / "BeyondGTAClips")
 CACHE = DATA / ".cache"
 ENV_DIR = Path.home() / ".beyondgtaclips"
