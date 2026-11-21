@@ -1,0 +1,46 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.DS_Store
+
+# Environments & dependencies
+.venv/
+venv/
+ENV/
+env/
+.beyondgtaclips/
+
+# Sensitive YouTube credentials & OAuth tokens (CRITICAL)
+*client_secrets*.json
+*token*.json
+client_secrets.json
+token.json
+youtube_config/
+
+# Cache, logs & media downloads
+.cache/
+*.mp4
+*.m4a
+*.wav
+*.mp3
+*.webm
+*.mkv
+*.jpg
+*.jpeg
+*.png
+!assets/**
+
+# Progress & local state files
+scheduled_queue.json
+chunk_progress.json
+last_find.json
+clipped.json
+settings.json
+*.log
+
+# internal working notes (not part of the product)
+docs/DEVELOPER-SPEC.md
+docs/OVERVIEW.md
+docs/REA-REPORT.md
+docs/reference/
