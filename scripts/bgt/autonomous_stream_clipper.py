@@ -32,21 +32,40 @@ from bgt import brains, common, discover, highlights, media, pipeline, produce, 
 from bgt.common import CACHE, DATA, Problem, clock, human, parse_clock, read_json, say, slug, write_json
 from bgt import youtube_scheduler
 
-PROGRESS_FILE = Path.home() / "BeyondGTAClips" / "chunk_progress.json"
+PROGRESS_DIR = Path.home() / "BeyondGTAClips" / "progress"
 
 
-def load_progress():
-    if PROGRESS_FILE.exists():
+def load_stream_progress(stream_key):
+    """Loads completed chunk indices for a stream, with legacy fallback."""
+    PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
+    f = PROGRESS_DIR / f"{stream_key}.json"
+    if f.exists():
         try:
-            return json.loads(PROGRESS_FILE.read_text(encoding="utf-8"))
+            return set(json.loads(f.read_text(encoding="utf-8")))
         except Exception:
-            return {}
-    return {}
+            pass
+    legacy = Path.home() / "BeyondGTAClips" / "chunk_progress.json"
+    if legacy.exists():
+        try:
+            data = json.loads(legacy.read_text(encoding="utf-8"))
+            return set(data.get(stream_key, []))
+        except Exception:
+            pass
+    return set()
 
 
-def save_progress(data):
-    PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PROGRESS_FILE.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+def save_stream_progress(stream_key, completed_chunks):
+    """Saves completed chunk indices per stream independently (safe for concurrent runs)."""
+    PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
+    f = PROGRESS_DIR / f"{stream_key}.json"
+    f.write_text(json.dumps(sorted(list(completed_chunks)), indent=2), encoding="utf-8")
+    try:
+        legacy = Path.home() / "BeyondGTAClips" / "chunk_progress.json"
+        data = json.loads(legacy.read_text(encoding="utf-8")) if legacy.exists() else {}
+        data[stream_key] = sorted(list(completed_chunks))
+        legacy.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def solve_agent_tasks(waiting_items, default_creator="Streamer", channel_profile=None):
@@ -309,9 +328,8 @@ def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: i
     num_chunks = max(1, math.ceil(total_sec / chunk_sec))
     say(f"Divided stream into {num_chunks} sequential 1-hour chunk(s)\n", "step")
 
-    progress = load_progress()
     stream_key = f"{slug(creator, 20)}__{slug(title, 20)}"
-    completed_chunks = set(progress.get(stream_key, []))
+    completed_chunks = load_stream_progress(stream_key)
 
     # Initialize parallel upload queue & background uploader thread
     upload_q = queue.Queue(maxsize=2)  # backpressure: max 2 rendered chunks waiting for upload
@@ -371,8 +389,7 @@ def run_stream_automation(url: str, chunk_hours: float = 1.0, clips_per_chunk: i
 
             # Mark chunk done in progress file
             completed_chunks.add(i)
-            progress[stream_key] = list(completed_chunks)
-            save_progress(progress)
+            save_stream_progress(stream_key, completed_chunks)
 
         # Wait for any remaining background uploads to finish
         say(f"\n[pipeline] All chunks rendered! Finalizing any active YouTube uploads for '{ch_display}'...", "step")

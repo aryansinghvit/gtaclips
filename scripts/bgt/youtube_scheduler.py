@@ -170,7 +170,7 @@ def get_authenticated_service(channel=None):
                 print(f"  py -3.13 beyondgtaclips.py youtube-auth --channel \"{ch_name}\"\n")
                 sys.exit(1)
 
-            print(f"\n[auth] Authorizing YouTube channel: {ch_name} ({ch_profile.get('language', 'en').upper()})")
+            print(f"\n[auth] Authorizing YouTube channel: {ch_name} ({ch_profile.get('language', 'en').upper()})", flush=True)
             flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets_file), SCOPES)
             message = (
                 f"\n=======================================================\n"
@@ -178,13 +178,24 @@ def get_authenticated_service(channel=None):
                 f"{{url}}\n"
                 f"=======================================================\n"
             )
-            creds = flow.run_local_server(
-                port=8080,
-                prompt="consent",
-                access_type="offline",
-                authorization_prompt_message=message,
-                open_browser=True,
-            )
+            print(f"[auth] Starting local auth server on port 8080...", flush=True)
+            try:
+                creds = flow.run_local_server(
+                    port=8080,
+                    prompt="consent",
+                    access_type="offline",
+                    authorization_prompt_message=message,
+                    open_browser=True,
+                )
+            except OSError as err:
+                print(f"[warning] Port 8080 busy ({err}), falling back to automatic port...", flush=True)
+                creds = flow.run_local_server(
+                    port=0,
+                    prompt="consent",
+                    access_type="offline",
+                    authorization_prompt_message=message,
+                    open_browser=True,
+                )
             token_file.write_text(creds.to_json(), encoding="utf-8")
             print(f"[ok] YouTube credentials for '{ch_name}' saved to {token_file}", flush=True)
 
