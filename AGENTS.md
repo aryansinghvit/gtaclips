@@ -23,12 +23,14 @@ The user manages two distinct YouTube channels:
 1. **Clips Count**: 5–6 clips per 1 hour of stream video (e.g., 8-hour stream produces ~40–48 clips; 1 hour produces 6 clips).
 2. **Stream Discovery Recency**: Last 48 hours (`within: 48h`).
 3. **Style**: **Stack** (`stack`: facecam on top, hook card divider, full gameplay below).
-4. **YouTube Publishing Slots**: Exactly 6 clips per day:
-   - Slot 1: 12:00 PM
-   - Slot 2: 06:00 PM
-   - Slot 3: 09:00 PM
-   - Slot 4: 12:00 AM (Midnight)
-   - Slot 5: 06:00 AM
-   - Slot 6: 09:00 AM
+4. **YouTube Publishing Slots**:
+   - **Immediate 1st Clip**: When the 1st clip is ready, publish it **immediately** (Public) to the channel.
+   - **Subsequent Clips**: From the 2nd clip onward, schedule across the 6 daily slots:
+     - Slot 1: 12:00 PM
+     - Slot 2: 06:00 PM
+     - Slot 3: 09:00 PM
+     - Slot 4: 12:00 AM (Midnight)
+     - Slot 5: 06:00 AM
+     - Slot 6: 09:00 AM
 5. **Disk Storage**: Purge local `.mp4` video files immediately after upload.
 6. **Unique Metadata**: Every clip must have a distinct hook title, transcript-derived scene synopsis, dialogue quote, rotating call-to-action question, and channel-tailored tags.

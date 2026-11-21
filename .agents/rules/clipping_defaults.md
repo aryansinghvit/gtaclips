@@ -29,7 +29,8 @@ The user manages two distinct YouTube channels:
 3. **Video Style / Template**:
    - **Stack** style (Style #2: streamer facecam boxed on top, hook text divider in middle, full gameplay below).
 4. **YouTube Publishing Schedule**:
-   - Exactly 6 clips per day across these 6 slots:
+   - **Immediate 1st Clip**: When the 1st clip is ready, publish it **immediately** (Public) to the channel.
+   - **Subsequent Clips**: From the 2nd clip onward, schedule across the 6 daily slots:
      - Slot 1: 12:00 PM (Noon)
      - Slot 2: 06:00 PM (Evening prime)
      - Slot 3: 09:00 PM (Night prime)
